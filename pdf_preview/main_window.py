@@ -5,6 +5,7 @@ import json
 import logging
 import sys
 import winreg
+from os import path
 from pathlib import Path
 
 from PyPDF2 import PdfFileMerger
@@ -55,7 +56,7 @@ class ConvertThread(QtCore.QRunnable):
             sheets = self.sheet_selection.get(book_filename, None)
             force = True if book_filename in self.force_files else False
             converter = saveAsPDF.Converter()
-            r = converter.convert(str(Path(self.root) / book_filename), sheets, force, "PDF")
+            r = converter.convert(str(Path(self.root) / book_filename), sheets, force, path.expandvars('$LOCALAPPDATA\pdf-preview\cache'))
             if r is not None:
                 pdfs.append(r)
 
@@ -76,13 +77,16 @@ class CheckableFileSystemModel(QFileSystemModel):
 
     updateCheckState = QtCore.Signal(str, int)
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, name_filters=None):
         super(CheckableFileSystemModel, self).__init__(parent)
         self.book_list_widget: QtWidgets.QListWidget = None
-        self.setNameFilters(["*.xls", "*.xlsx", "*.xlsm", "*.doc", "*.docx"])
+        if name_filters:
+            self.setNameFilters(name_filters)
+        else:
+            self.setNameFilters(["*.xls", "*.xlsx", "*.xlsm", "*.doc", "*.docx"])
 
     def setBookListWidget(self, widget):
-        """Book の一覧を保持する ListWIidget を設定する"""
+        """Book の一覧を保持する ListWidget を設定する"""
         self.book_list_widget = widget
 
     def checkState(self, index):

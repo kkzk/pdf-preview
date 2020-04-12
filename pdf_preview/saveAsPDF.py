@@ -93,8 +93,7 @@ class Converter(object):
         ext = Path(src_filename).suffix
 
         dst_filename = src.parent / dest_dir / src.with_suffix(".pdf").name
-        if not dst_filename.parent.exists():
-            dst_filename.parent.mkdir(exist_ok=True)
+        dst_filename.parent.mkdir(exist_ok=True, parents=True)
 
         # Excel/Word を開く前にタイムスタンプを保存する
         src_mtime = src.stat().st_mtime
