@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import hashlib
 import logging
 import os
 import tempfile
@@ -8,7 +9,6 @@ from pathlib import Path, PureWindowsPath
 from contextlib import contextmanager
 
 import win32com.client
-import win32ui
 import win32con
 
 LOGGER = logging.getLogger(__name__)
@@ -87,12 +87,21 @@ class Converter(object):
     """Office ドキュメントを PDF に変換する"""
 
     @staticmethod
-    def convert(src_filename: str, selected_sheets: dict = None, force=False, dest_dir="."):
+    def convert(src_filename: str, selected_sheets: dict = None, force=False, dest_dir=".") -> str:
+        """Office ファイルを PDF に変換する
+
+        :param src_filename: 処理対象の Office ドキュメントファイル名
+        :param selected_sheets: 印刷対象のシート名（Excelの場合にのみ有効）
+        :param force: 変換済みファイルとタイムスタンプが同じ場合でも処理する
+        :param dest_dir: 変換後のファイルの配置場所
+        :return: 変換後のファイル名をフルパス
+        """
         LOGGER.debug("ENTER:convert({})".format(src_filename))
         src = Path(src_filename).absolute()
         ext = Path(src_filename).suffix
 
-        dst_filename = src.parent / dest_dir / src.with_suffix(".pdf").name
+        # 変換後のファイル名を作成する
+        dst_filename = (Path(dest_dir) / hashlib.md5(str(src).encode()).hexdigest()).with_suffix(".pdf")
         dst_filename.parent.mkdir(exist_ok=True, parents=True)
 
         # Excel/Word を開く前にタイムスタンプを保存する
@@ -116,6 +125,8 @@ class Converter(object):
             office = Word()
         else:
             return None
+
+        # Officeの機能でPDFを作成する
         office.saveAsPDF(str(src), tmp_filename, selected_sheets)
 
         while True:
