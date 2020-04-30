@@ -131,9 +131,10 @@ class FileOrderWidget(QtWidgets.QListWidget):
     """
     fileOrderChanged = QtCore.Signal(list)
 
-    def __init__(self, parent=None):
+    def __init__(self, parent, root, single_file):
         super(FileOrderWidget, self).__init__(parent)
-        self.rootPath = None
+        self.root = root
+        self.single_file = single_file
         self.model().rowsInserted.connect(self.on_rows_changed)
         self.model().rowsInserted.connect(self.addWatchPath)
         self.model().rowsRemoved.connect(self.on_rows_changed)
@@ -151,10 +152,10 @@ class FileOrderWidget(QtWidgets.QListWidget):
         QDesktopServices.openUrl(QUrl.fromLocalFile(self.abspath(item.text())))
 
     def abspath(self, path):
-        return str(Path(self.rootPath) / path)
+        return str(Path(self.root) / path)
 
     def abspath_parent(self, path):
-        return str((Path(self.rootPath) / path).parent)
+        return str((Path(self.root) / path).parent)
 
     def addWatchPath(self, parent: QtCore.QModelIndex, first: int, last: int):
         LOGGER.debug("ファイルの変更を監視します:{}".format(self.abspath(self.item(first).text())))
@@ -178,7 +179,7 @@ class FileOrderWidget(QtWidgets.QListWidget):
 
     def on_file_changed(self, path: str):
         LOGGER.debug("ファイルが変更されました:{}".format(path))
-        r_path = str(Path(path).relative_to(self.rootPath))
+        r_path = str(Path(path).relative_to(self.root))
         items = self.findItems(r_path, Qt.MatchExactly)
         if len(items) > 0:
             r = self.watcher.addPath(path)
@@ -189,13 +190,14 @@ class FileOrderWidget(QtWidgets.QListWidget):
                 LOGGER.debug("一覧に変更はないのですがファイルが更新されたようなのでPDFを作り直してもらいます。")
                 self.on_rows_changed()
 
-    def setRootPath(self, path):
-        self.rootPath = path
-
     def addItem(self, filename):
         if isinstance(filename, str):
             item = QtWidgets.QListWidgetItem(filename)
             item.setIcon(self.iconProvider.icon(QtCore.QFileInfo(self.abspath(filename))))
+            if not self.single_file or self.single_file == filename:
+                item.setFlags(item.flags() | Qt.ItemIsEnabled)
+            else:
+                item.setFlags(item.flags() & ~Qt.ItemIsEnabled)
             self.addItem(item)
             super().addItem(item)
         else:
@@ -318,8 +320,7 @@ class LeftPane(QWidget):
         self.tv.resizeColumnToContents(3)
 
         # ファイル一覧のビュー
-        self.book_list = FileOrderWidget()
-        self.book_list.setRootPath(self.model.rootPath())
+        self.book_list = FileOrderWidget(self, root, single_file)
         self.book_list.setAcceptDrops(True)
         self.book_list.setDragEnabled(True)
         self.book_list.setDragDropMode(self.book_list.InternalMove)
@@ -461,6 +462,8 @@ class MainWindow(QMainWindow):
             recreate_file = []
         LOGGER.debug("PDF作成:{}".format(book_names))
         self.save_sheet_selection()
+        if self.single_file:
+            book_names = [self.single_file]
         p = ConvertThread(self.root, self.output_path, book_names, recreate_file, self.left_pane.sheet_list.sheet_selection)
         p.obj_connection.threadFinished.connect(self.reload)
         QtCore.QThreadPool.globalInstance().start(p)
