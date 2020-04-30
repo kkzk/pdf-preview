@@ -26,6 +26,10 @@ def register():
     i = winreg.CreateKeyEx(h, "command")
     winreg.SetValue(i, "", winreg.REG_SZ, '{} -m pdf_preview "%1"'.format(sys.executable, path))
 
+    h = winreg.CreateKeyEx(HKCR, r"*\shell\{}.convert".format(KEY))
+    winreg.SetValue(h, "", winreg.REG_SZ, "PDF Preview")
+    i = winreg.CreateKeyEx(h, "command")
+    winreg.SetValue(i, "", winreg.REG_SZ, '{} -m pdf_preview "%1"'.format(sys.executable, path))
 
 def main():
     parser = argparse.ArgumentParser()
