@@ -10,6 +10,7 @@ from contextlib import contextmanager
 
 import win32com.client
 import win32con
+import win32ui
 
 LOGGER = logging.getLogger(__name__)
 

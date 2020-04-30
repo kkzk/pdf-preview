@@ -1,17 +1,14 @@
 # -*- coding: utf-8 -*-
-import argparse
-import ctypes
+import os
 import json
 import logging
-import sys
-import winreg
-from os import path
 from pathlib import Path
 
+import openpyxl
 from PyPDF2 import PdfFileMerger
-from PySide2 import QtCore, QtGui
+from PySide2 import QtCore
 from PySide2 import QtWidgets
-from PySide2.QtCore import QUrl, Slot, Qt, Signal
+from PySide2.QtCore import QUrl, Slot, Qt
 from PySide2.QtGui import QGuiApplication, QDesktopServices
 from PySide2.QtWebEngineWidgets import QWebEngineView, QWebEngineSettings
 from PySide2.QtWidgets import QApplication, QMainWindow, QWidget, QFileSystemModel, QTreeView, QSplitter, \
@@ -19,7 +16,6 @@ from PySide2.QtWidgets import QApplication, QMainWindow, QWidget, QFileSystemMod
 from PySide2.QtWidgets import QVBoxLayout
 
 from . import saveAsPDF
-import openpyxl
 
 LOGGER = logging.getLogger(__name__)
 
@@ -56,7 +52,8 @@ class ConvertThread(QtCore.QRunnable):
             sheets = self.sheet_selection.get(book_filename, None)
             force = True if book_filename in self.force_files else False
             converter = saveAsPDF.Converter()
-            r = converter.convert(str(Path(self.root) / book_filename), sheets, force, path.expandvars('$LOCALAPPDATA\pdf-preview\cache'))
+            r = converter.convert(str(Path(self.root) / book_filename), sheets, force,
+                                  os.path.expandvars(r'$LOCALAPPDATA\pdf-preview\cache'))
             if r is not None:
                 pdfs.append(r)
 
@@ -77,17 +74,18 @@ class CheckableFileSystemModel(QFileSystemModel):
 
     updateCheckState = QtCore.Signal(str, int)
 
-    def __init__(self, parent=None, name_filters=None):
+    def __init__(self, parent=None, single_file_mode=None):
         super(CheckableFileSystemModel, self).__init__(parent)
-        self.book_list_widget: QtWidgets.QListWidget = None
-        if name_filters:
-            self.setNameFilters(name_filters)
+        self.file_order_widget: QtWidgets.QListWidget = None
+        self.single_file = single_file_mode
+        if self.single_file:
+            self.setNameFilters([self.single_file])
         else:
             self.setNameFilters(["*.xls", "*.xlsx", "*.xlsm", "*.doc", "*.docx"])
 
     def setBookListWidget(self, widget):
         """Book の一覧を保持する ListWidget を設定する"""
-        self.book_list_widget = widget
+        self.file_order_widget = widget
 
     def checkState(self, index):
         if self.filePath(index) in self.checks:
@@ -111,7 +109,7 @@ class CheckableFileSystemModel(QFileSystemModel):
             return QFileSystemModel.data(self, index, role)
         else:
             if index.column() == 0:
-                items = self.book_list_widget.findItems(self.relativePath(index), Qt.MatchExactly)
+                items = self.file_order_widget.findItems(self.relativePath(index), Qt.MatchExactly)
                 if len(items) > 0:
                     return Qt.Checked
                 else:
@@ -304,19 +302,21 @@ class LeftPane(QWidget):
             root = self.model.rootPath()
             self.sheet_list.setSheetList(root, r_path)
 
-    def __init__(self, parent, source):
+    def __init__(self, parent, root, single_file):
         super(LeftPane, self).__init__(parent)
         self.sheet_selected_dict = {}
+
         # ファイルのツリービュー
+        self.model = CheckableFileSystemModel(self, single_file)
         self.tv = QTreeView(self)
-        self.model = CheckableFileSystemModel(self)
         self.tv.setModel(self.model)
-        self.tv.setRootIndex(self.model.setRootPath(source))
-        self.tv.header().setStretchLastSection(False)  # 一番右のカラムをストレッチする→Flase
+        self.tv.setRootIndex(self.model.setRootPath(root))
+        self.tv.header().setStretchLastSection(False)  # 一番右のカラムをストレッチする→False
         self.tv.setColumnWidth(0, 200)
         self.tv.resizeColumnToContents(1)
         self.tv.resizeColumnToContents(2)
         self.tv.resizeColumnToContents(3)
+
         # ファイル一覧のビュー
         self.book_list = FileOrderWidget()
         self.book_list.setRootPath(self.model.rootPath())
@@ -398,12 +398,25 @@ class MainWindow(QMainWindow):
         json.dump(json_data, open(self.sheet_selection_filename, "w"), indent=4, ensure_ascii=False)
 
     def __init__(self, source):
+        """
+
+        :param source: 対象のファイルまたはディレクトリ
+        """
         super(MainWindow, self).__init__()
         self.source = source
+        # 対象がファイルの場合はファイルのあるディレクトリをツリーに表示する
+        if Path(source).is_file():
+            self.root = str(Path(source).parent)
+            self.single_file = Path(source).name
+        else:
+            self.root = source
+            self.single_file = None
+
         self.output_path = Path(self.source).absolute().with_suffix(".PDF")
-        self.sheet_selection_filename = Path(self.source) / "PDF.json"
+        self.sheet_selection_filename = Path(self.root) / "PDF.json"
         self.setWindowTitle(str(self.output_path))
-        self.left_pane = LeftPane(self, self.source)
+
+        self.left_pane = LeftPane(self, self.root, self.single_file)
         self.left_pane.model.updateCheckState.connect(self.save_sheet_selection)  # ツリーでチェックされたら保存
         self.left_pane.file_selection_changed.connect(self.convertToPdf)  # ファイル選択の変更
         self.left_pane.sheet_selection_changed.connect(self.on_sheet_selection_changed)  # シート選択の変更
@@ -439,7 +452,7 @@ class MainWindow(QMainWindow):
     @Slot(list, str, str, Qt.CheckState)
     def on_sheet_selection_changed(self, paths: list, filename: str, sheet_name: str, state: Qt.CheckState):
         LOGGER.debug("シートの選択変更：{} / {} / {}".format(filename, sheet_name, state))
-        self.convertToPdf(paths, filename)
+        self.convertToPdf(paths, [filename])
         return
 
     # ブックを並び替えたら（最初のブックを選択したときも含む）PDF変換してすべて結合
@@ -448,7 +461,7 @@ class MainWindow(QMainWindow):
             recreate_file = []
         LOGGER.debug("PDF作成:{}".format(book_names))
         self.save_sheet_selection()
-        p = ConvertThread(self.source, self.output_path, book_names, recreate_file, self.left_pane.sheet_list.sheet_selection)
+        p = ConvertThread(self.root, self.output_path, book_names, recreate_file, self.left_pane.sheet_list.sheet_selection)
         p.obj_connection.threadFinished.connect(self.reload)
         QtCore.QThreadPool.globalInstance().start(p)
 
