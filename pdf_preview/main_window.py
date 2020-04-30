@@ -81,7 +81,7 @@ class CheckableFileSystemModel(QFileSystemModel):
         if self.single_file:
             self.setNameFilters([self.single_file])
         else:
-            self.setNameFilters(["*.xls", "*.xlsx", "*.xlsm", "*.doc", "*.docx"])
+         self.setNameFilters(["*.xls", "*.xlsx", "*.xlsm", "*.doc", "*.docx", "*.pdf"])
 
     def setBookListWidget(self, widget):
         """Book の一覧を保持する ListWidget を設定する"""
