@@ -4,6 +4,7 @@ import logging
 import os
 import tempfile
 import shutil
+from typing import Optional
 
 from pathlib import Path, PureWindowsPath
 from contextlib import contextmanager
@@ -33,19 +34,20 @@ class Word(OfficeBase):
     def _open(self, filename):
         filename = str(PureWindowsPath(filename))
         logging.debug("Document.Open({})".format(filename))
-        oFile = self.office.Documents.Open(
+        application = self.office.Documents.Open(
             filename, 0, True, False, "something")
-        yield oFile
-        oFile.Saved = True
-        oFile.Close()
-        oFile = None
+        yield application
+        application.Saved = True
+        application.Close()
+        del application
         logging.debug("Document.Close()")
 
     def saveAsPDF(self, filename, tmp_name, select_sheet):
+        assert select_sheet is None
         with self._open(filename) as word:
             logging.debug("ExportAsFixedFormat:{}".format(filename))
             word.ExportAsFixedFormat(str(PureWindowsPath(tmp_name)), self.wdExportFormatPDF)
-            return None           # 版数なし
+            return None
 
 
 class Excel(OfficeBase):
@@ -60,17 +62,17 @@ class Excel(OfficeBase):
 
     @contextmanager
     def _open(self, filename):
-        excel_vba = self.office.Workbooks.Open(filename, 0, True)
-        yield excel_vba
-        excel_vba.Saved = True
-        excel_vba.Close()
-        excel_vba = None
+        application = self.office.Workbooks.Open(filename, 0, True)
+        yield application
+        application.Saved = True
+        application.Close()
+        del application
 
-    def saveAsPDF(self, filename, tmp_fileame, selected_sheet: dict = None):
+    def saveAsPDF(self, filename, tmp_filename, selected_sheet: dict = None):
         with self._open(filename) as excel_workbook:
             if selected_sheet is None:
                 # シートを選択したことがない場合には全体を変換する
-                excel_workbook.ExportAsFixedFormat(self.xlTypePDF, tmp_fileame, self.xlQuality)
+                excel_workbook.ExportAsFixedFormat(self.xlTypePDF, tmp_filename, self.xlQuality)
             else:
                 # 最初の選択シートをExcelで選択します。このとき他のExcelのシートは選択を解除します。
                 # 他の選択シートもExcelで選択するときに、選択状態を置換せず追加で選択します。
@@ -81,14 +83,14 @@ class Excel(OfficeBase):
                     if selected_sheet.get(excel_sheet.name, True):  # デフォルトは「選択あり」
                         excel_sheet.Select(do_replace)
                         do_replace = False
-                excel_workbook.ActiveSheet.ExportAsFixedFormat(self.xlTypePDF, tmp_fileame, self.xlQuality)
+                excel_workbook.ActiveSheet.ExportAsFixedFormat(self.xlTypePDF, tmp_filename, self.xlQuality)
 
 
 class Converter(object):
     """Office ドキュメントを PDF に変換する"""
 
     @staticmethod
-    def convert(src_filename: str, selected_sheets: dict = None, force=False, dest_dir=".") -> str:
+    def convert(src_filename: str, selected_sheets: dict = None, force=False, dest_dir=".") -> Optional[str]:
         """Office ファイルを PDF に変換する
 
         :param src_filename: 処理対象の Office ドキュメントファイル名
@@ -99,7 +101,7 @@ class Converter(object):
         """
         LOGGER.debug("ENTER:convert({})".format(src_filename))
         src = Path(src_filename).absolute()
-        ext = Path(src_filename).suffix
+        ext = Path(src_filename).suffix.lower()
 
         # 変換後のファイル名を作成する
         dst_filename = (Path(dest_dir) / hashlib.md5(str(src).encode()).hexdigest()).with_suffix(".pdf")
@@ -115,10 +117,9 @@ class Converter(object):
                     LOGGER.info("ファイルが作成済みです:{}".format(dst_filename))
                     return dst_filename
 
-        # 出力先のファイルが OPEN されていると出力できない(Excel)
-        # 一時ファイルを作成して後から移動する
-        (fd, tmp_filename) = tempfile.mkstemp(".PDF")
-        os.close(fd)
+        if ext in [".pdf"]:
+            shutil.copy2(src, dst_filename)
+            return dst_filename
 
         if ext in [".xlsx", ".xls", ".xlsm"]:
             office = Excel()
@@ -126,6 +127,11 @@ class Converter(object):
             office = Word()
         else:
             return None
+
+        # 出力先のファイルが OPEN されていると出力できない(Excel)
+        # 一時ファイルを作成して後から移動する
+        (fd, tmp_filename) = tempfile.mkstemp(".PDF")
+        os.close(fd)
 
         # Officeの機能でPDFを作成する
         office.saveAsPDF(str(src), tmp_filename, selected_sheets)
@@ -143,9 +149,9 @@ class Converter(object):
                     return None
 
 
-def main(args):
-    LOGGER.debug("ENTER:main({})".format(args))
-    for source in args.source:
+def main(sources):
+    LOGGER.debug("ENTER:main({})".format(sources))
+    for source in sources:
         abspath = Path(source).absolute()
         Converter.convert(abspath)
 
@@ -154,9 +160,9 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("source", type=str, nargs="+")
+    parser.add_argument("sources", type=str, nargs="+")
     parser.add_argument("-d", "--debug", action="store_true", default=False)
     args = parser.parse_args()
     if args.debug:
         logging.basicConfig(level=logging.DEBUG)
-    main(args)
+    main(args.source)
