@@ -2,6 +2,8 @@
 import os
 import json
 import logging
+from datetime import timedelta, datetime
+from glob import glob
 from pathlib import Path
 
 import openpyxl
@@ -27,6 +29,7 @@ def merge_pdfs(paths, output):
     for path in paths:
         merger.append(open(path, "rb"))
     merger.write(str(output))
+    merger.close()
     LOGGER.debug("merged")
 
 
@@ -46,14 +49,19 @@ class ConvertThread(QtCore.QRunnable):
 
     def run(self):
         LOGGER.debug("PDF変換開始")
+        dest_dir = os.path.expandvars(r'$LOCALAPPDATA\pdf-preview\cache')
         pdfs = []
+        cached_file = glob(dest_dir + r"\*")
+        for f in cached_file:
+            if datetime.fromtimestamp(os.stat(f).st_ctime) < datetime.now() - timedelta(days=2):
+                LOGGER.debug("purge cache:{}".format(f))
+                os.unlink(f)
         # PDF 作成
         for book_filename in self.all_books:
             sheets = self.sheet_selection.get(book_filename, None)
             force = True if book_filename in self.force_files else False
             converter = saveAsPDF.Converter()
-            r = converter.convert(str(Path(self.root) / book_filename), sheets, force,
-                                  os.path.expandvars(r'$LOCALAPPDATA\pdf-preview\cache'))
+            r = converter.convert(str(Path(self.root) / book_filename), sheets, force, dest_dir)
             if r is not None:
                 pdfs.append(r)
 
