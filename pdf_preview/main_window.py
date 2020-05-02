@@ -137,16 +137,16 @@ class FileOrderWidget(QtWidgets.QListWidget):
 
     signal: fileOrderChanged(list) list: 変更結果のファイルの一覧
     """
-    fileOrderChanged = QtCore.Signal(list)
+    fileOrderChanged = QtCore.Signal()
 
     def __init__(self, parent, root, single_file):
         super(FileOrderWidget, self).__init__(parent)
         self.root = root
         self.single_file = single_file
-        self.model().rowsInserted.connect(self.on_rows_changed)
+        self.model().rowsInserted.connect(self.fileOrderChanged)
         self.model().rowsInserted.connect(self.addWatchPath)
-        self.model().rowsRemoved.connect(self.on_rows_changed)
-        self.model().rowsMoved.connect(self.on_rows_changed)
+        self.model().rowsRemoved.connect(self.fileOrderChanged)
+        self.model().rowsMoved.connect(self.fileOrderChanged)
         # ファイル変更時にPDFを再作成する
         self.watcher = QtCore.QFileSystemWatcher()
         self.watcher.fileChanged.connect(self.on_file_changed)
@@ -273,22 +273,16 @@ class ExcelSheetsView(QtWidgets.QListWidget):
             self.addItem(item)
         book.close()
 
-    def set_selected_sheet(self, book_filename, sheet_name, action: Qt.CheckState):
-        if book_filename not in self.sheet_selection:
-            self.sheet_selection[book_filename] = {}
-        if action == Qt.Checked:
-            self.sheet_selection[book_filename][sheet_name] = True
-        else:
-            self.sheet_selection[book_filename][sheet_name] = False
-
-    def selected_sheets(self, book_filename):
-        return self.sheet_selection.get(book_filename, None)
-
     @Slot(QListWidgetItem)
     def on_itemChanged(self, item: QListWidgetItem):
         sheet_name = item.text()
         check_state = item.checkState()
-        self.set_selected_sheet(self.currentBookName, sheet_name, check_state)
+        if self.currentBookName not in self.sheet_selection:
+            self.sheet_selection[self.currentBookName] = {}
+        if check_state == Qt.Checked:
+            self.sheet_selection[self.currentBookName][sheet_name] = True
+        else:
+            self.sheet_selection[self.currentBookName][sheet_name] = False
         self.sheetSelectionChanged.emit(self.currentBookName, sheet_name, check_state)
 
 
@@ -346,7 +340,7 @@ class LeftPane(QWidget):
         # 上段のチェックボックスの変更に合わせて中段のファイルの一覧を更新する
         self.model.updateCheckState.connect(self.on_update_check_state)
         # 中段のブック一覧の順番が変更・チェックが変更になった時
-        self.book_list.fileOrderChanged.connect(self.on_fileorderUpdated)
+        self.book_list.fileOrderChanged.connect(self.on_fileOrderChanged)
         self.book_list.currentItemChanged.connect(self.on_currentItemChanged)
         # 下段のシート一覧のチェック状態が変更になった時
         self.sheet_list.sheetSelectionChanged.connect(self.on_sheetSelectionUpdated)
@@ -368,11 +362,14 @@ class LeftPane(QWidget):
         LOGGER.debug("ファイルを開きます:{}".format(index))
         QDesktopServices.openUrl(QUrl.fromLocalFile(self.model.filePath(index)))
 
-    @Slot(list)
-    def on_fileorderUpdated(self, filelist):
-        LOGGER.debug(filelist)
+    @Slot()
+    def on_fileOrderChanged(self):
+        LOGGER.debug("ファイル一覧が変更されました。有効なファイルは次の通りです。")
+        paths = [self.book_list.item(i).text() for i in range(self.book_list.count()) if
+                 not self.book_list.item(i).isHidden()]
+        LOGGER.debug("{}".format(paths))
         self.tv.resizeColumnToContents(0)
-        self.file_selection_changed.emit(filelist)
+        self.file_selection_changed.emit(paths)
 
 
 class MainWindow(QMainWindow):
@@ -405,7 +402,7 @@ class MainWindow(QMainWindow):
 
         for i in range(self.left_pane.book_list.count()):
             item = self.left_pane.book_list.item(i)
-            path = item.text()                  # path(relative)
+            path = item.text()  # path(relative)
             json_data["files"].append(path)
         json_data["sheets"] = self.left_pane.sheet_list.sheet_selection
         LOGGER.debug("save setting: {}: {}".format(self.sheet_selection_filename, json_data))
@@ -451,7 +448,7 @@ class MainWindow(QMainWindow):
         base.setStretchFactor(1, 1)
 
         self.load_sheet_selection()
-        self.reload()
+        self.left_pane.book_list.fileOrderChanged.emit()
         self.setCentralWidget(base)
         self.resize(QtWidgets.QApplication.screens()[0].size() * 0.7)
 
@@ -477,7 +474,8 @@ class MainWindow(QMainWindow):
         self.save_sheet_selection()
         if self.single_file:
             book_names = [self.single_file]
-        p = ConvertThread(self.root, self.output_path, book_names, recreate_file, self.left_pane.sheet_list.sheet_selection)
+        p = ConvertThread(self.root, self.output_path, book_names, recreate_file,
+                          self.left_pane.sheet_list.sheet_selection)
         p.obj_connection.threadFinished.connect(self.reload)
         QtCore.QThreadPool.globalInstance().start(p)
 
