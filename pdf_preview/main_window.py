@@ -254,10 +254,8 @@ class ExcelSheetsView(QtWidgets.QListWidget):
             return
 
         f_path = str((Path(root) / book_name).absolute())
-        book = openpyxl.open(f_path, read_only=True)
-        sheet_names = book.sheetnames
-        book.close()
-        for sheet_name in sheet_names:
+        book = openpyxl.open(f_path, read_only=False)
+        for sheet_name in book.sheetnames:
             item = QtWidgets.QListWidgetItem()
             item.setText(sheet_name)
             if book_name not in self.sheet_selection:
@@ -266,7 +264,14 @@ class ExcelSheetsView(QtWidgets.QListWidget):
                 item.setCheckState(Qt.Checked)
             else:
                 item.setCheckState(Qt.Unchecked)
+
+            # 非表示のシートを無効にする
+            if book[sheet_name].sheet_state == 'hidden':
+                item.setCheckState(Qt.Unchecked)
+                item.setFlags(item.flags() & ~Qt.ItemIsEnabled)
+
             self.addItem(item)
+        book.close()
 
     def set_selected_sheet(self, book_filename, sheet_name, action: Qt.CheckState):
         if book_filename not in self.sheet_selection:
