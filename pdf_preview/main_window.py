@@ -2,6 +2,8 @@
 import os
 import json
 import logging
+from datetime import timedelta, datetime
+from glob import glob
 from pathlib import Path
 
 import openpyxl
@@ -27,6 +29,7 @@ def merge_pdfs(paths, output):
     for path in paths:
         merger.append(open(path, "rb"))
     merger.write(str(output))
+    merger.close()
     LOGGER.debug("merged")
 
 
@@ -46,14 +49,19 @@ class ConvertThread(QtCore.QRunnable):
 
     def run(self):
         LOGGER.debug("PDF変換開始")
+        dest_dir = os.path.expandvars(r'$LOCALAPPDATA\pdf-preview\cache')
         pdfs = []
+        cached_file = glob(dest_dir + r"\*")
+        for f in cached_file:
+            if datetime.fromtimestamp(os.stat(f).st_ctime) < datetime.now() - timedelta(days=2):
+                LOGGER.debug("purge cache:{}".format(f))
+                os.unlink(f)
         # PDF 作成
         for book_filename in self.all_books:
             sheets = self.sheet_selection.get(book_filename, None)
             force = True if book_filename in self.force_files else False
             converter = saveAsPDF.Converter()
-            r = converter.convert(str(Path(self.root) / book_filename), sheets, force,
-                                  os.path.expandvars(r'$LOCALAPPDATA\pdf-preview\cache'))
+            r = converter.convert(str(Path(self.root) / book_filename), sheets, force, dest_dir)
             if r is not None:
                 pdfs.append(r)
 
@@ -246,10 +254,8 @@ class ExcelSheetsView(QtWidgets.QListWidget):
             return
 
         f_path = str((Path(root) / book_name).absolute())
-        book = openpyxl.open(f_path, read_only=True)
-        sheet_names = book.sheetnames
-        book.close()
-        for sheet_name in sheet_names:
+        book = openpyxl.open(f_path, read_only=False)
+        for sheet_name in book.sheetnames:
             item = QtWidgets.QListWidgetItem()
             item.setText(sheet_name)
             if book_name not in self.sheet_selection:
@@ -258,7 +264,14 @@ class ExcelSheetsView(QtWidgets.QListWidget):
                 item.setCheckState(Qt.Checked)
             else:
                 item.setCheckState(Qt.Unchecked)
+
+            # 非表示のシートを無効にする
+            if book[sheet_name].sheet_state == 'hidden':
+                item.setCheckState(Qt.Unchecked)
+                item.setFlags(item.flags() & ~Qt.ItemIsEnabled)
+
             self.addItem(item)
+        book.close()
 
     def set_selected_sheet(self, book_filename, sheet_name, action: Qt.CheckState):
         if book_filename not in self.sheet_selection:
