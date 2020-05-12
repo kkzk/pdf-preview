@@ -230,7 +230,7 @@ class FileOrderWidget(QtWidgets.QListWidget):
         LOGGER.debug("ファイル一覧が変更されました。有効なファイルは次の通りです。")
         paths = [self.item(i).text() for i in range(self.count()) if not self.item(i).isHidden()]
         LOGGER.debug("{}".format(paths))
-        self.fileOrderChanged.emit(paths)
+        self.fileOrderChanged.emit()
 
 
 class ExcelSheetsView(QtWidgets.QListWidget):
