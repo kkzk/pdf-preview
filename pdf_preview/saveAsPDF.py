@@ -12,6 +12,7 @@ from contextlib import contextmanager
 import win32com.client
 import win32con
 import win32ui
+from win32com.universal import com_error
 
 LOGGER = logging.getLogger(__name__)
 
@@ -77,12 +78,19 @@ class Excel(OfficeBase):
                 # 最初の選択シートをExcelで選択します。このとき他のExcelのシートは選択を解除します。
                 # 他の選択シートもExcelで選択するときに、選択状態を置換せず追加で選択します。
                 # 選択したかどうかわからないものは、印刷対象として選択していることにします。
+                #
+                # 非表示のシートは過去に選択した記録があっても、印刷用のSelectメソッドを実行しません。
+                #
                 LOGGER.debug("sheet selection:{}".format(selected_sheet))
                 do_replace = True
                 for excel_sheet in excel_workbook.sheets:
-                    if selected_sheet.get(excel_sheet.name, True):  # デフォルトは「選択あり」
-                        excel_sheet.Select(do_replace)
-                        do_replace = False
+                    if selected_sheet.get(excel_sheet.name, True):  # 指定がない場合のデフォルトは「選択あり」
+                        if excel_sheet.Visible:
+                            try:
+                                excel_sheet.Select(do_replace)
+                            except com_error:
+                                LOGGER.warning("シート名「{}」に対する Select メソッドの実行時時にエラーが発生しました。".format(excel_sheet.name))
+                            do_replace = False
                 excel_workbook.ActiveSheet.ExportAsFixedFormat(self.xlTypePDF, tmp_filename, self.xlQuality)
 
 
