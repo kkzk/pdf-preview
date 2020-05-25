@@ -54,8 +54,11 @@ class ConvertThread(QtCore.QRunnable):
         cached_file = glob(dest_dir + r"\*")
         for f in cached_file:
             if datetime.fromtimestamp(os.stat(f).st_ctime) < datetime.now() - timedelta(days=2):
-                LOGGER.debug("purge cache:{}".format(f))
-                os.unlink(f)
+                LOGGER.debug("purge cache:{} ({})".format(os.stat(f).st_ctime, f))
+                try:
+                    os.unlink(f)
+                except PermissionError:
+                    pass
         # PDF 作成
         for book_filename in self.all_books:
             sheets = self.sheet_selection.get(book_filename, None)
