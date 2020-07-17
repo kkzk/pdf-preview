@@ -115,6 +115,11 @@ class Converter(object):
         dst_filename = (Path(dest_dir) / hashlib.md5(str(src).encode()).hexdigest()).with_suffix(".pdf")
         dst_filename.parent.mkdir(exist_ok=True, parents=True)
 
+        # 変換元のファイルの存在を確認する
+        if not src.exists():
+            LOGGER.info("ファイルがありません:{}".format(src_filename))
+            return None
+
         # Excel/Word を開く前にタイムスタンプを保存する
         src_mtime = src.stat().st_mtime
         # 変換先の PDF のタイムスタンプが同じなら変換しない
