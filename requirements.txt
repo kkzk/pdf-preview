@@ -1,0 +1,4 @@
+pywin32
+PyPDF2
+PySide2
+openpyxl
