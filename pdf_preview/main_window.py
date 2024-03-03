@@ -7,13 +7,12 @@ from glob import glob
 from pathlib import Path
 
 import openpyxl
-from PyPDF2 import PdfFileMerger
+from pypdf import PdfMerger
 from PySide6 import QtCore
 from PySide6 import QtWidgets
 from PySide6.QtCore import QUrl, Slot, Qt
 from PySide6.QtGui import QGuiApplication, QDesktopServices
 from PySide6.QtWebEngineWidgets import QWebEngineView
-from PySide6.QtWebEngineCore import QWebEngineSettings
 from PySide6.QtWidgets import QApplication, QMainWindow, QWidget, QFileSystemModel, QTreeView, QSplitter, \
     QListWidgetItem, QAbstractItemView
 from PySide6.QtWidgets import QVBoxLayout
@@ -26,7 +25,7 @@ LOGGER = logging.getLogger(__name__)
 def merge_pdfs(paths, output):
     LOGGER.debug("merge from {}".format(paths))
     LOGGER.debug("merge to {}".format(output))
-    merger = PdfFileMerger()
+    merger = PdfMerger()
     for path in paths:
         merger.append(open(path, "rb"))
     merger.write(str(output))
@@ -339,7 +338,7 @@ class LeftPane(QWidget):
         self.book_list = FileOrderWidget(self, root, single_file)
         self.book_list.setAcceptDrops(True)
         self.book_list.setDragEnabled(True)
-        self.book_list.setDragDropMode(QAbstractItemView.InternalMove)
+        self.book_list.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
         # Excel のシート一覧のビュー
         self.sheet_list = ExcelSheetsView()
 
@@ -441,7 +440,7 @@ class MainWindow(QMainWindow):
         self.left_pane.file_selection_changed.connect(self.convertToPdf)  # ファイル選択の変更
         self.left_pane.sheet_selection_changed.connect(self.on_sheet_selection_changed)  # シート選択の変更
         self.web = QWebEngineView()
-        self.web.settings().setAttribute(QWebEngineSettings.PluginsEnabled, True)
+        ## self.web.settings().setAttribute(QWebEngineSettings.PluginsEnabled, True)
         self.viewer_html = str(Path(__file__).parent / Path('pdfjs-dist/web/viewer.html'))
         LOGGER.debug(self.viewer_html)
 

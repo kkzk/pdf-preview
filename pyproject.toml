@@ -1,27 +1,14 @@
 [tool.poetry]
 name = "pdf-preview"
-version = "0.1.2"
+version = "0.2.0"
 description = "PDF Previewer for Excel / Word document."
 authors = ["kkzk <shohachi.kakizaki@gmail.com>"]
-homepage = "https://github.com/kkzk/pdf-preview"
-readme = "README.rst"
-include = ["pdf_preview/pdfjs-dist"]
-classifiers = [
-    "Operating System :: Microsoft :: Windows",
-    "Development Status :: 2 - Pre-Alpha",
-    "License :: OSI Approved :: Apache Software License"
-    ]
+readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "3.11"
-PySide6 = "^6.4.0"
-pywin32 = "^305"
-openpyxl = "^3.0.3"
-PyPDF2 = "^1.26.0"
+python = "^3.12"
 
-[tool.poetry.dev-dependencies]
-pytest = "^5.2"
 
 [build-system]
-requires = ["poetry>=0.12"]
-build-backend = "poetry.masonry.api"
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
