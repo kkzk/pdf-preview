@@ -20,8 +20,8 @@ Dependencies
 ------------
 
 - pywin32
-- PyPDF2
-- PySide2
+- pypdf
+- PySide6
 - openpyxl
 
 and their requirement packages.
