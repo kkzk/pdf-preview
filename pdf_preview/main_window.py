@@ -7,15 +7,15 @@ from glob import glob
 from pathlib import Path
 
 import openpyxl
-from PyPDF2 import PdfFileMerger
-from PySide2 import QtCore
-from PySide2 import QtWidgets
-from PySide2.QtCore import QUrl, Slot, Qt
-from PySide2.QtGui import QGuiApplication, QDesktopServices
-from PySide2.QtWebEngineWidgets import QWebEngineView, QWebEngineSettings
-from PySide2.QtWidgets import QApplication, QMainWindow, QWidget, QFileSystemModel, QTreeView, QSplitter, \
-    QListWidgetItem
-from PySide2.QtWidgets import QVBoxLayout
+from pypdf import PdfMerger
+from PySide6 import QtCore
+from PySide6 import QtWidgets
+from PySide6.QtCore import QUrl, Slot, Qt
+from PySide6.QtGui import QGuiApplication, QDesktopServices
+from PySide6.QtWebEngineWidgets import QWebEngineView
+from PySide6.QtWidgets import QApplication, QMainWindow, QWidget, QFileSystemModel, QTreeView, QSplitter, \
+    QListWidgetItem, QAbstractItemView
+from PySide6.QtWidgets import QVBoxLayout
 
 from . import saveAsPDF
 
@@ -25,7 +25,7 @@ LOGGER = logging.getLogger(__name__)
 def merge_pdfs(paths, output):
     LOGGER.debug("merge from {}".format(paths))
     LOGGER.debug("merge to {}".format(output))
-    merger = PdfFileMerger()
+    merger = PdfMerger()
     for path in paths:
         merger.append(open(path, "rb"))
     merger.write(str(output))
@@ -99,10 +99,10 @@ class CheckableFileSystemModel(QFileSystemModel):
         self.file_order_widget = widget
 
     def checkState(self, index):
-        if self.filePath(index) in self.checks:
-            return QtCore.Qt.Checked
+        if self.filePath(index) in self.check:
+            return QtCore.Qt.CheckState.Checked
         else:
-            return QtCore.Qt.Unchecked
+            return QtCore.Qt.CheckState.Unchecked
 
     def relativePath(self, index):
         """index位置の相対パスを取得"""
@@ -113,26 +113,27 @@ class CheckableFileSystemModel(QFileSystemModel):
     #
     def flags(self, index):
         """チェックボックス付きであるフラグを追加"""
-        return QFileSystemModel.flags(self, index) | Qt.ItemIsUserCheckable
+        return QFileSystemModel.flags(self, index) | Qt.ItemFlag.ItemIsUserCheckable
 
-    def data(self, index, role=Qt.DisplayRole):
-        if role != Qt.CheckStateRole:
+    def data(self, index, role=Qt.ItemDataRole.DisplayRole):
+        if role != Qt.ItemDataRole.CheckStateRole:
             return QFileSystemModel.data(self, index, role)
         else:
             if index.column() == 0:
-                items = self.file_order_widget.findItems(self.relativePath(index), Qt.MatchExactly)
+                ## ファイル一覧に入っているかどうかでチェックの有無を返す
+                items = self.file_order_widget.findItems(self.relativePath(index), Qt.MatchFlag.MatchExactly)
                 if len(items) > 0:
-                    return Qt.Checked
+                    return Qt.CheckState.Checked
                 else:
-                    return Qt.Unchecked
+                    return Qt.CheckState.Unchecked
 
     def setData(self, index, value, role=None):
-        if role == QtCore.Qt.CheckStateRole and index.column() == 0:
+        if role == QtCore.Qt.ItemDataRole.CheckStateRole and index.column() == 0:
             LOGGER.debug("SELECT:{}".format(self.relativePath(index)))
             self.dataChanged.emit(index, index)
             self.updateCheckState.emit(self.relativePath(index), value)
             return True
-        return QFileSystemModel.setData(self, index, value, role)
+        return super().setData(self, index, value, role)
 
 
 class FileOrderWidget(QtWidgets.QListWidget):
@@ -219,13 +220,17 @@ class FileOrderWidget(QtWidgets.QListWidget):
         """ツリービューでファイルのチェック状態が変更されたとき。
 
         ファイル一覧のファイルを追加または削除する。"""
-        if value == QtCore.Qt.Checked:
+        LOGGER.debug("ファイル一覧のファイルを更新する(value: %s)", value)
+        LOGGER.debug("ファイル一覧のファイルを更新する(value: %s)", QtCore.Qt.CheckState.Checked)
+        if Qt.CheckState(value) == QtCore.Qt.CheckState.Checked:
             self.addItem(filename)
             self.setCurrentRow(self.count() - 1)
-        elif value == QtCore.Qt.Unchecked:
-            items = self.findItems(filename, Qt.MatchExactly)
+            LOGGER.debug("%s を追加した", filename)
+        elif Qt.CheckState(value) == QtCore.Qt.CheckState.Unchecked:
+            items = self.findItems(filename, Qt.MatchFlag.MatchExactly)
             for item in items:
                 self.takeItem(self.row(item))
+                LOGGER.debug("%s を削除した", filename)
 
     @Slot()
     def on_rows_changed(self):
@@ -333,7 +338,7 @@ class LeftPane(QWidget):
         self.book_list = FileOrderWidget(self, root, single_file)
         self.book_list.setAcceptDrops(True)
         self.book_list.setDragEnabled(True)
-        self.book_list.setDragDropMode(self.book_list.InternalMove)
+        self.book_list.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
         # Excel のシート一覧のビュー
         self.sheet_list = ExcelSheetsView()
 
@@ -435,7 +440,7 @@ class MainWindow(QMainWindow):
         self.left_pane.file_selection_changed.connect(self.convertToPdf)  # ファイル選択の変更
         self.left_pane.sheet_selection_changed.connect(self.on_sheet_selection_changed)  # シート選択の変更
         self.web = QWebEngineView()
-        self.web.settings().setAttribute(QWebEngineSettings.PluginsEnabled, True)
+        ## self.web.settings().setAttribute(QWebEngineSettings.PluginsEnabled, True)
         self.viewer_html = str(Path(__file__).parent / Path('pdfjs-dist/web/viewer.html'))
         LOGGER.debug(self.viewer_html)
 
