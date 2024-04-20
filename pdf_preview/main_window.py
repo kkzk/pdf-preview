@@ -85,14 +85,10 @@ class CheckableFileSystemModel(QFileSystemModel):
 
     updateCheckState = QtCore.Signal(str, int)
 
-    def __init__(self, parent=None, single_file_mode=None):
+    def __init__(self, parent=None):
         super(CheckableFileSystemModel, self).__init__(parent)
         self.file_order_widget: QtWidgets.QListWidget = None
-        self.single_file = single_file_mode
-        if self.single_file:
-            self.setNameFilters([self.single_file])
-        else:
-            self.setNameFilters(["*.xls", "*.xlsx", "*.xlsm", "*.doc", "*.docx", "*.pdf"])
+        self.setNameFilters(["*.xls", "*.xlsx", "*.xlsm", "*.doc", "*.docx"])
 
     def setBookListWidget(self, widget):
         """Book の一覧を保持する ListWidget を設定する"""
@@ -143,10 +139,9 @@ class FileOrderWidget(QtWidgets.QListWidget):
     """
     fileOrderChanged = QtCore.Signal()
 
-    def __init__(self, parent, root, single_file):
+    def __init__(self, parent, root):
         super(FileOrderWidget, self).__init__(parent)
         self.root = root
-        self.single_file = single_file
         self.model().rowsInserted.connect(self.fileOrderChanged)
         self.model().rowsInserted.connect(self.addWatchPath)
         self.model().rowsRemoved.connect(self.fileOrderChanged)
@@ -206,10 +201,7 @@ class FileOrderWidget(QtWidgets.QListWidget):
         if isinstance(filename, str):
             item = QtWidgets.QListWidgetItem(filename)
             item.setIcon(self.iconProvider.icon(QtCore.QFileInfo(self.abspath(filename))))
-            if not self.single_file or self.single_file == filename:
-                item.setFlags(item.flags() | Qt.ItemIsEnabled)
-            else:
-                item.setFlags(item.flags() & ~Qt.ItemIsEnabled)
+            item.setFlags(item.flags() & ~Qt.ItemIsEnabled)
             self.addItem(item)
             super().addItem(item)
         else:
@@ -303,43 +295,31 @@ class LeftPane(QWidget):
     file_selection_changed = QtCore.Signal(list)
     sheet_selection_changed = QtCore.Signal(list, str, str, Qt.CheckState)
 
-    @Slot(str, str, Qt.CheckState)
-    def on_sheetSelectionUpdated(self, filename, sheet_name, state):
-        paths = [self.book_list.item(i).text() for i in range(self.book_list.count())]
-        self.sheet_selection_changed.emit(paths, filename, sheet_name, state)
-
-    def on_update_check_state(self, filename, value):
-        """ブック一覧を更新する"""
-        self.book_list.updateFileList(filename, value)
-
-    def on_currentItemChanged(self, newitem: QtWidgets.QListWidgetItem, olditem: QtWidgets.QListWidgetItem):
-        """シート一覧を初期化し、新しいブックのシート一覧を表示する"""
-        if newitem:
-            r_path = newitem.text()
-            root = self.model.rootPath()
-            self.sheet_list.setSheetList(root, r_path)
-
-    def __init__(self, parent, root, single_file):
+    def __init__(self, parent, root):
         super(LeftPane, self).__init__(parent)
         self.sheet_selected_dict = {}
 
+        #
         # ファイルのツリービュー
-        self.model = CheckableFileSystemModel(self, single_file)
+        #
+        self.model = CheckableFileSystemModel(self)
         self.tv = QTreeView(self)
         self.tv.setModel(self.model)
         self.tv.setRootIndex(self.model.setRootPath(root))
         self.tv.header().setStretchLastSection(False)  # 一番右のカラムをストレッチする→False
         self.tv.setColumnWidth(0, 200)
-        self.tv.resizeColumnToContents(1)
-        self.tv.resizeColumnToContents(2)
-        self.tv.resizeColumnToContents(3)
 
+        #
         # ファイル一覧のビュー
-        self.book_list = FileOrderWidget(self, root, single_file)
+        #
+        self.book_list = FileOrderWidget(self, root)
         self.book_list.setAcceptDrops(True)
         self.book_list.setDragEnabled(True)
         self.book_list.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
+
+        #
         # Excel のシート一覧のビュー
+        #
         self.sheet_list = ExcelSheetsView()
 
         # ツリービューのチェックボックスはブック一覧のリスト内容と連動
@@ -370,13 +350,28 @@ class LeftPane(QWidget):
         LOGGER.debug("ファイルを開きます:{}".format(index))
         QDesktopServices.openUrl(QUrl.fromLocalFile(self.model.filePath(index)))
 
+    @Slot(str, str, Qt.CheckState)
+    def on_sheetSelectionUpdated(self, filename, sheet_name, state):
+        paths = [self.book_list.item(i).text() for i in range(self.book_list.count())]
+        self.sheet_selection_changed.emit(paths, filename, sheet_name, state)
+
+    def on_update_check_state(self, filename, value):
+        """ブック一覧を更新する"""
+        self.book_list.updateFileList(filename, value)
+
+    def on_currentItemChanged(self, newitem: QtWidgets.QListWidgetItem, olditem: QtWidgets.QListWidgetItem):
+        """シート一覧を初期化し、新しいブックのシート一覧を表示する"""
+        if newitem:
+            r_path = newitem.text()
+            root = self.model.rootPath()
+            self.sheet_list.setSheetList(root, r_path)
+
     @Slot()
     def on_fileOrderChanged(self):
         LOGGER.debug("ファイル一覧が変更されました。有効なファイルは次の通りです。")
         paths = [self.book_list.item(i).text() for i in range(self.book_list.count()) if
                  not self.book_list.item(i).isHidden()]
         LOGGER.debug("{}".format(paths))
-        self.tv.resizeColumnToContents(0)
         self.file_selection_changed.emit(paths)
 
 
@@ -392,7 +387,7 @@ class MainWindow(QMainWindow):
             blocker = QtCore.QSignalBlocker(self.left_pane.book_list)
             for book_name in json_data["files"]:
                 self.left_pane.book_list.addItem(book_name)
-                self.left_pane.book_list.watcher.addPath(str(Path(self.source) / book_name))
+                self.left_pane.book_list.watcher.addPath(str(Path(self.source_dir) / book_name))
             del blocker
         except KeyError:
             pass
@@ -416,26 +411,23 @@ class MainWindow(QMainWindow):
         LOGGER.debug("save setting: {}: {}".format(self.sheet_selection_filename, json_data))
         json.dump(json_data, open(self.sheet_selection_filename, "w"), indent=4, ensure_ascii=False)
 
-    def __init__(self, source):
+    def __init__(self, source_dir: str):
         """
 
         :param source: 対象のファイルまたはディレクトリ
         """
         super(MainWindow, self).__init__()
-        self.source = source
+        self.source_dir = source_dir
         # 対象がファイルの場合はファイルのあるディレクトリをツリーに表示する
-        if Path(source).is_file():
-            self.root = str(Path(source).parent)
-            self.single_file = Path(source).name
-        else:
-            self.root = source
-            self.single_file = None
+        if Path(source_dir).is_file():
+            self.source_dir = str(Path(source_dir).parent)
 
-        self.output_path = Path(self.source).absolute().with_suffix(".PDF")
-        self.sheet_selection_filename = Path(self.root) / "PDF.json"
+        # 出力先は対象ディレクトリの中。ディレクトリと同名で拡張子を変えたもの。
+        self.output_path = Path(self.source_dir) / Path(self.source_dir).with_suffix(".PDF").name
+        self.sheet_selection_filename = self.output_path.with_suffix(".PDF.json")
         self.setWindowTitle(str(self.output_path))
 
-        self.left_pane = LeftPane(self, self.root, self.single_file)
+        self.left_pane = LeftPane(self, self.source_dir)
         self.left_pane.model.updateCheckState.connect(self.save_sheet_selection)  # ツリーでチェックされたら保存
         self.left_pane.file_selection_changed.connect(self.convertToPdf)  # ファイル選択の変更
         self.left_pane.sheet_selection_changed.connect(self.on_sheet_selection_changed)  # シート選択の変更
@@ -480,9 +472,7 @@ class MainWindow(QMainWindow):
             recreate_file = []
         LOGGER.debug("PDF作成:{}".format(book_names))
         self.save_sheet_selection()
-        if self.single_file:
-            book_names = [self.single_file]
-        p = ConvertThread(self.root, self.output_path, book_names, recreate_file,
+        p = ConvertThread(self.source_dir, self.output_path, book_names, recreate_file,
                           self.left_pane.sheet_list.sheet_selection)
         p.obj_connection.threadFinished.connect(self.reload)
         QtCore.QThreadPool.globalInstance().start(p)
