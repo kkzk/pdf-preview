@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "pdf-preview"
-version = "0.3.0"
+version = "0.3.1"
 description = "PDF Previewer for Excel / Word document."
 authors = ["kkzk <shohachi.kakizaki@gmail.com>"]
 homepage = "https://github.com/kkzk/pdf-preview"
