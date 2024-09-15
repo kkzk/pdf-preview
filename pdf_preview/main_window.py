@@ -411,19 +411,22 @@ class MainWindow(QMainWindow):
         LOGGER.debug("save setting: {}: {}".format(self.sheet_selection_filename, json_data))
         json.dump(json_data, open(self.sheet_selection_filename, "w"), indent=4, ensure_ascii=False)
 
-    def __init__(self, source_dir: str):
+    def __init__(self, source_path: str):
         """
 
-        :param source: 対象のファイルまたはディレクトリ
+        :param source_path: 対象のファイルまたはディレクトリ
         """
         super(MainWindow, self).__init__()
-        self.source_dir = source_dir
-        # 対象がファイルの場合はファイルのあるディレクトリをツリーに表示する
-        if Path(source_dir).is_file():
-            self.source_dir = str(Path(source_dir).parent)
+        if Path(source_path).is_file():
+            # 対象がファイルの場合はファイルのあるディレクトリをツリーに表示する
+            # 出力先はファイルと同じ場所。ファイルと同名で拡張子を変えたもの。
+            self.source_dir = str(Path(source_path).parent)
+            self.output_path = Path(self.source_dir) / Path(source_path).with_suffix(".PDF").name
+        else:
+            # 出力先は対象ディレクトリの中。ディレクトリと同名で拡張子を変えたもの。
+            self.source_dir = source_path
+            self.output_path = Path(self.source_dir) / Path(self.source_dir).with_suffix(".PDF").name
 
-        # 出力先は対象ディレクトリの中。ディレクトリと同名で拡張子を変えたもの。
-        self.output_path = Path(self.source_dir) / Path(self.source_dir).with_suffix(".PDF").name
         self.sheet_selection_filename = self.output_path.with_suffix(".PDF.json")
         self.setWindowTitle(str(self.output_path))
 
