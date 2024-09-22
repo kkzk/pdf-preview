@@ -63,20 +63,28 @@ class Excel(OfficeBase):
 
     @contextmanager
     def _open(self, filename):
-        application = self.office.Workbooks.Open(filename, 0, True)
+        # Excel が同名のファイルを開けないので異なるファイル名にコピーして開く
+        (fd, tmp_filename) = tempfile.mkstemp(Path(filename).suffix)
+        os.close(fd)
+        shutil.copy2(filename, tmp_filename)
+        LOGGER.debug("copy to %s", tmp_filename)
+        application = self.office.Workbooks.Open(tmp_filename, 0, True)
         yield application
         application.Saved = True
         application.Close()
         del application
+        os.unlink(tmp_filename)
+        LOGGER.debug("delete %s", tmp_filename)
 
-    def saveAsPDF(self, filename, tmp_filename, selected_sheet: dict = None):
+
+    def saveAsPDF(self, filename, pdf_filename, selected_sheet: dict = None):
         with self._open(filename) as excel_workbook:
             if selected_sheet is None:
                 # シートを選択したことがない場合には全体を変換する
-                excel_workbook.ExportAsFixedFormat(self.xlTypePDF, tmp_filename, self.xlQuality)
+                excel_workbook.ExportAsFixedFormat(self.xlTypePDF, pdf_filename, self.xlQuality)
             else:
-                # 最初の選択シートをExcelで選択します。このとき他のExcelのシートは選択を解除します。
-                # 他の選択シートもExcelで選択するときに、選択状態を置換せず追加で選択します。
+                # 元のExcelのシートの選択状態とは無関係に、ツールが指定するシートを選択します。
+                # 
                 # 選択したかどうかわからないものは、印刷対象として選択していることにします。
                 #
                 # 非表示のシートは過去に選択した記録があっても、印刷用のSelectメソッドを実行しません。
@@ -87,18 +95,18 @@ class Excel(OfficeBase):
                     if selected_sheet.get(excel_sheet.name, True):  # 指定がない場合のデフォルトは「選択あり」
                         if excel_sheet.Visible:
                             try:
-                                excel_sheet.Select(do_replace)
+                                excel_sheet.Select(do_replace)  # １シート目は新規選択、２シート目以降を追加選択
                             except com_error:
                                 LOGGER.warning("シート名「{}」に対する Select メソッドの実行時時にエラーが発生しました。".format(excel_sheet.name))
                             do_replace = False
-                excel_workbook.ActiveSheet.ExportAsFixedFormat(self.xlTypePDF, tmp_filename, self.xlQuality)
+                excel_workbook.ActiveSheet.ExportAsFixedFormat(self.xlTypePDF, pdf_filename, self.xlQuality)
 
 
 class Converter(object):
     """Office ドキュメントを PDF に変換する"""
 
     @staticmethod
-    def convert(src_filename: str, selected_sheets: dict = None, force=False, dest_dir=".") -> Optional[str]:
+    def convert(src_filename: str, selected_sheets: dict = None, force=False, cache_dir=".") -> Optional[str]:
         """Office ファイルを PDF に変換する
 
         :param src_filename: 処理対象の Office ドキュメントファイル名
@@ -112,7 +120,7 @@ class Converter(object):
         ext = Path(src_filename).suffix.lower()
 
         # 変換後のファイル名を作成する
-        dst_filename = (Path(dest_dir) / hashlib.md5(str(src).encode()).hexdigest()).with_suffix(".pdf")
+        dst_filename = (Path(cache_dir) / hashlib.md5(str(src).encode()).hexdigest()).with_suffix(".pdf")
         dst_filename.parent.mkdir(exist_ok=True, parents=True)
 
         # 変換元のファイルの存在を確認する
