@@ -379,7 +379,10 @@ class MainWindow(QMainWindow):
     def load_sheet_selection(self):
         """シート選択の状態を復元する"""
         try:
-            json_data = json.load(open(self.sheet_selection_filename, "r"))
+            try:
+                json_data = json.load(open(self.sheet_selection_filename, "r"))
+            except UnicodeDecodeError:
+                json_data = json.load(open(self.sheet_selection_filename, "r", encoding="utf-8"))
         except IOError:
             return
         try:
@@ -409,7 +412,7 @@ class MainWindow(QMainWindow):
             json_data["files"].append(path)
         json_data["sheets"] = self.left_pane.sheet_list.sheet_selection
         LOGGER.debug("save setting: {}: {}".format(self.sheet_selection_filename, json_data))
-        json.dump(json_data, open(self.sheet_selection_filename, "w"), indent=4, ensure_ascii=False)
+        json.dump(json_data, open(self.sheet_selection_filename, "w", encoding="utf-8"), indent=4, ensure_ascii=False)
 
     def __init__(self, source_path: str):
         """
