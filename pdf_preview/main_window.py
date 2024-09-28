@@ -49,12 +49,12 @@ class ConvertThread(QtCore.QRunnable):
 
     def run(self):
         LOGGER.debug("PDF変換開始")
-        dest_dir = os.path.expandvars(r'$LOCALAPPDATA\pdf-preview\cache')
+        cache_dir = os.path.expandvars(r'$LOCALAPPDATA\pdf-preview\cache')
         pdfs = []
-        cached_file = glob(dest_dir + r"\*")
+        cached_file = glob(cache_dir + r"\*")
         for f in cached_file:
-            if datetime.fromtimestamp(os.stat(f).st_ctime) < datetime.now() - timedelta(days=2):
-                LOGGER.debug("purge cache:{} ({})".format(os.stat(f).st_ctime, f))
+            if datetime.fromtimestamp(os.stat(f).st_birthtime) < datetime.now() - timedelta(days=2):
+                LOGGER.debug("purge cache:{} ({})".format(os.stat(f).st_birthtime, f))
                 try:
                     os.unlink(f)
                 except PermissionError:
@@ -64,7 +64,7 @@ class ConvertThread(QtCore.QRunnable):
             sheets = self.sheet_selection.get(book_filename, None)
             force = True if book_filename in self.force_files else False
             converter = saveAsPDF.Converter()
-            r = converter.convert(str(Path(self.root) / book_filename), sheets, force, dest_dir)
+            r = converter.convert(str(Path(self.root) / book_filename), sheets, force, cache_dir)
             if r is not None:
                 pdfs.append(r)
 
@@ -435,7 +435,8 @@ class MainWindow(QMainWindow):
         self.left_pane.file_selection_changed.connect(self.convertToPdf)  # ファイル選択の変更
         self.left_pane.sheet_selection_changed.connect(self.on_sheet_selection_changed)  # シート選択の変更
         self.web = QWebEngineView()
-        ## self.web.settings().setAttribute(QWebEngineSettings.PluginsEnabled, True)
+        self.web.settings().setAttribute(self.web.settings().WebAttribute.PluginsEnabled, True)
+        self.web.settings().setAttribute(self.web.settings().WebAttribute.PdfViewerEnabled, True)
         self.viewer_html = str(Path(__file__).parent / Path('pdfjs-dist/web/viewer.html'))
         LOGGER.debug(self.viewer_html)
 
@@ -457,9 +458,15 @@ class MainWindow(QMainWindow):
 
     @Slot()
     def reload(self):
-        url = QUrl.fromLocalFile(str(self.output_path.absolute())).toString()
-        LOGGER.debug("PDF表示を更新します {}".format(url))
-        self.web.load(QUrl.fromUserInput(QUrl.fromLocalFile(self.viewer_html).toString() + "?file={}".format(url)))
+        # url = QUrl.fromLocalFile(str(self.output_path.absolute()))
+        # LOGGER.debug("PDF表示を更新します {}".format(url))
+        # self.web.load(url)
+
+        param = QUrl.fromLocalFile(str(self.output_path.absolute())).toString()
+        url= QUrl.fromUserInput(QUrl.fromLocalFile(self.viewer_html).toString() + "?file={}".format(param))
+        LOGGER.debug("PDF表示を更新します {}".format(param))
+        # if self.web.url() != url:
+        self.web.load(url)
         return
 
     # シートの選択を変えたら、変えたブックだけPDF変換してすべて結合
