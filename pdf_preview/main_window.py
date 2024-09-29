@@ -136,6 +136,7 @@ class CheckableFileSystemModel(QFileSystemModel):
         return super().setData(self, index, value, role)
 
 
+
 class FileOrderWidget(QtWidgets.QListWidget):
     """選択したファイルの順番を変更するリスト
 
@@ -146,6 +147,13 @@ class FileOrderWidget(QtWidgets.QListWidget):
     def __init__(self, parent, root):
         super(FileOrderWidget, self).__init__(parent)
         self.root = root
+        # Drag & Drop での順番変更を有効にする
+        self.setAcceptDrops(True)
+        self.setDragEnabled(True)
+        self.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
+        self.setDropIndicatorShown(True)
+        self.setMovement(QtWidgets.QListView.Movement.Snap)
+
         self.model().rowsInserted.connect(self.fileOrderChanged)
         self.model().rowsInserted.connect(self.addWatchPath)
         self.model().rowsRemoved.connect(self.fileOrderChanged)
@@ -205,7 +213,7 @@ class FileOrderWidget(QtWidgets.QListWidget):
         if isinstance(filename, str):
             item = QtWidgets.QListWidgetItem(filename)
             item.setIcon(self.iconProvider.icon(QtCore.QFileInfo(self.abspath(filename))))
-            item.setFlags(item.flags() & ~Qt.ItemIsEnabled)
+            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsDragEnabled)
             self.addItem(item)
             super().addItem(item)
         else:
@@ -312,14 +320,12 @@ class LeftPane(QWidget):
         self.tv.setRootIndex(self.model.setRootPath(root))
         self.tv.header().setStretchLastSection(False)  # 一番右のカラムをストレッチする→False
         self.tv.setColumnWidth(0, 200)
+        self.tv.doubleClicked.connect(self.open_file)
 
         #
         # ファイル一覧のビュー
         #
         self.book_list = FileOrderWidget(self, root)
-        self.book_list.setAcceptDrops(True)
-        self.book_list.setDragEnabled(True)
-        self.book_list.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
 
         #
         # Excel のシート一覧のビュー
@@ -337,7 +343,6 @@ class LeftPane(QWidget):
         # 下段のシート一覧のチェック状態が変更になった時
         self.sheet_list.sheetSelectionChanged.connect(self.on_sheetSelectionUpdated)
 
-        self.tv.doubleClicked.connect(self.open_file)
 
         s = QSplitter(Qt.Vertical)
         lo = QVBoxLayout()
@@ -442,6 +447,7 @@ class MainWindow(QMainWindow):
         self.left_pane.model.updateCheckState.connect(self.save_sheet_selection)  # ツリーでチェックされたら保存
         self.left_pane.file_selection_changed.connect(self.convertToPdf)  # ファイル選択の変更
         self.left_pane.sheet_selection_changed.connect(self.on_sheet_selection_changed)  # シート選択の変更
+
         self.web = QWebEngineView()
         self.web.settings().setAttribute(self.web.settings().WebAttribute.PluginsEnabled, True)
         self.web.settings().setAttribute(self.web.settings().WebAttribute.PdfViewerEnabled, True)
