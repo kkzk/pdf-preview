@@ -23,8 +23,12 @@ LOGGER = logging.getLogger(__name__)
 
 
 def merge_pdfs(paths, output):
-    LOGGER.debug("merge from {}".format(paths))
-    LOGGER.debug("merge to {}".format(output))
+    """PDFファイルを結合する"""
+    if LOGGER.isEnabledFor(logging.DEBUG):
+        for path in paths:
+            LOGGER.debug("merge from {}".format(path))
+        LOGGER.debug("merge to {}".format(output))
+
     merger = PdfMerger()
     for path in paths:
         merger.append(open(path, "rb"))
@@ -411,7 +415,8 @@ class MainWindow(QMainWindow):
             path = item.text()  # path(relative)
             json_data["files"].append(path)
         json_data["sheets"] = self.left_pane.sheet_list.sheet_selection
-        LOGGER.debug("save setting: {}: {}".format(self.sheet_selection_filename, json_data))
+        # LOGGER.debug("save setting: {}: {}".format(self.sheet_selection_filename, json_data))
+        LOGGER.debug("save")
         json.dump(json_data, open(self.sheet_selection_filename, "w", encoding="utf-8"), indent=4, ensure_ascii=False)
 
     def __init__(self, source_path: str):
@@ -502,7 +507,7 @@ class MainWindow(QMainWindow):
 
         param = QUrl.fromLocalFile(str(self.output_path.absolute())).toString()
         url= QUrl.fromUserInput(QUrl.fromLocalFile(self.viewer_html).toString() + "?file={}".format(param))
-        LOGGER.debug("PDF表示を更新します {}".format(param))
+        LOGGER.debug("PDF表示を更新します {}".format(self.output_path))
         # if self.web.url() != url:
         self.web.load(url)
         return

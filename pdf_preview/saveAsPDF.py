@@ -120,8 +120,9 @@ class Converter(object):
         ext = Path(src_filename).suffix.lower()
 
         # 変換後のファイル名を作成する
-        dst_filename = (Path(cache_dir) / hashlib.md5(str(src).encode()).hexdigest()).with_suffix(".pdf")
-        dst_filename.parent.mkdir(exist_ok=True, parents=True)
+        dst_name = Path(hashlib.md5(str(src).encode()).hexdigest()).with_suffix(".pdf")
+        dst_path = Path(cache_dir) / dst_name
+        dst_path.parent.mkdir(exist_ok=True, parents=True)
 
         # 変換元のファイルの存在を確認する
         if not src.exists():
@@ -131,16 +132,16 @@ class Converter(object):
         # Excel/Word を開く前にタイムスタンプを保存する
         src_mtime = src.stat().st_mtime
         # 変換先の PDF のタイムスタンプが同じなら変換しない
-        if dst_filename.exists():
-            dst_mtime = Path(dst_filename).stat().st_mtime
+        if dst_path.exists():
+            dst_mtime = Path(dst_path).stat().st_mtime
             if not force:
                 if src_mtime == dst_mtime:
-                    LOGGER.info("ファイルが作成済みです:{}".format(dst_filename))
-                    return dst_filename
+                    LOGGER.info("ファイル更新済み:{}".format(dst_name))
+                    return dst_path
 
         if ext in [".pdf"]:
-            shutil.copy2(src, dst_filename)
-            return dst_filename
+            shutil.copy2(src, dst_path)
+            return dst_path
 
         if ext in [".xlsx", ".xls", ".xlsm"]:
             office = Excel()
@@ -159,9 +160,9 @@ class Converter(object):
 
         while True:
             try:
-                shutil.move(tmp_filename, dst_filename)
-                os.utime(dst_filename, (src_mtime, src_mtime))  # タイムスタンプをコピー
-                return dst_filename
+                shutil.move(tmp_filename, dst_path)
+                os.utime(dst_path, (src_mtime, src_mtime))  # タイムスタンプをコピー
+                return dst_path
             except OSError:
                 import traceback
                 traceback.print_exc()
