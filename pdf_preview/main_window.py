@@ -17,7 +17,7 @@ from PySide6.QtWidgets import QApplication, QMainWindow, QWidget, QFileSystemMod
     QListWidgetItem, QAbstractItemView
 from PySide6.QtWidgets import QVBoxLayout
 
-from . import saveAsPDF
+from . import saveAsPDF, util
 
 LOGGER = logging.getLogger(__name__)
 
@@ -53,9 +53,9 @@ class ConvertThread(QtCore.QRunnable):
 
     def run(self):
         LOGGER.debug("PDF変換開始")
-        cache_dir = os.path.expandvars(r'$LOCALAPPDATA\pdf-preview\cache')
+        cache_dir = util.cache_dir()
         pdfs = []
-        cached_file = glob(cache_dir + r"\*")
+        cached_file = glob(str(cache_dir) + r"\*")
         for f in cached_file:
             if datetime.fromtimestamp(os.stat(f).st_birthtime) < datetime.now() - timedelta(days=2):
                 LOGGER.debug("purge cache:{} ({})".format(os.stat(f).st_birthtime, f))

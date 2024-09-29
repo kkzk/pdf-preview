@@ -1,0 +1,25 @@
+version: 1
+formatters:
+  simple:
+    format: '%(asctime)s:%(levelname)-7s:%(threadName)s:%(filename)s:%(lineno)d:%(funcName)s:%(message)s'
+handlers:
+  console:
+    class: logging.StreamHandler
+    level: DEBUG
+    formatter: simple
+    stream: ext://sys.stdout
+  file:
+    class: logging.handlers.RotatingFileHandler
+    level: DEBUG
+    formatter: simple
+    filename: pdf_preview.log
+    maxBytes: 10485760
+    backupCount: 5
+loggers:
+  simpleExample:
+    level: DEBUG
+    handlers: [console]
+    propagate: no
+root:
+  level: DEBUG
+  handlers: [console,file]

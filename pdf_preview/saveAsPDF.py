@@ -115,7 +115,7 @@ class Converter(object):
         :param dest_dir: 変換後のファイルの配置場所
         :return: 変換後のファイル名をフルパス
         """
-        LOGGER.debug("ENTER:convert({})".format(src_filename))
+        LOGGER.debug("convert from {}".format(src_filename))
         src = Path(src_filename).absolute()
         ext = Path(src_filename).suffix.lower()
 
@@ -123,10 +123,11 @@ class Converter(object):
         dst_name = Path(hashlib.md5(str(src).encode()).hexdigest()).with_suffix(".pdf")
         dst_path = Path(cache_dir) / dst_name
         dst_path.parent.mkdir(exist_ok=True, parents=True)
+        LOGGER.debug("convert to {}".format(dst_name))
 
         # 変換元のファイルの存在を確認する
         if not src.exists():
-            LOGGER.info("ファイルがありません:{}".format(src_filename))
+            LOGGER.info("not found {}".format(src_filename))
             return None
 
         # Excel/Word を開く前にタイムスタンプを保存する
@@ -136,7 +137,7 @@ class Converter(object):
             dst_mtime = Path(dst_path).stat().st_mtime
             if not force:
                 if src_mtime == dst_mtime:
-                    LOGGER.info("ファイル更新済み:{}".format(dst_name))
+                    LOGGER.debug("same timestamp {}".format(dst_path.stat().st_mtime))
                     return dst_path
 
         if ext in [".pdf"]:

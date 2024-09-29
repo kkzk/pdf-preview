@@ -1,8 +1,13 @@
 import argparse
 import ctypes
-import logging
+import logging.config
 import sys
 import winreg
+import os
+
+from . import util
+
+import yaml
 
 LOGGER = logging.getLogger(__name__)
 
@@ -38,11 +43,17 @@ def main():
     parser.add_argument("-i", "--install", action="store_true", default=False)
     args = parser.parse_args()
 
-    if args.debug:
-        log_format = "%(asctime)s:%(levelname)-7s:%(threadName)s:%(filename)s:%(lineno)d:%(funcName)s:%(message)s"
-        logging.basicConfig(level=logging.DEBUG, format=log_format)
-    else:
-        logging.basicConfig(level=logging.INFO)
+    # モジュールと同一ディレクトリにある logging.ini をよみこみ、loggerを設定する
+    # log_dir をログファイルの出力先として設定する
+    log_dir = util.log_dir()
+    log_path = log_dir / "pdf_preview.log"
+    os.makedirs(log_dir, exist_ok=True)
+
+    config_path = os.path.join(os.path.dirname(__file__), 'logging.yaml')
+    config = yaml.safe_load(open(config_path).read())
+    config["handlers"]["file"]["filename"] = log_path
+    logging.config.dictConfig(config)
+    LOGGER.debug("start")
 
     if args.install:
         if is_admin():
@@ -59,4 +70,5 @@ def main():
 
 
 if __name__ == '__main__':
+                                           
     main()
