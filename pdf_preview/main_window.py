@@ -454,6 +454,40 @@ class MainWindow(QMainWindow):
         base.setStretchFactor(0, 0)  # 左はウインドウサイズ変更に追随させない
         base.setStretchFactor(1, 1)
 
+        # ログ表示用のテキストエリア
+        self.console = QtWidgets.QTextEdit()
+        self.console.setReadOnly(True)
+        self.console.setLineWrapMode(QtWidgets.QTextEdit.LineWrapMode.NoWrap)
+        self.console.setFixedHeight(100)
+        layout.addWidget(self.console)
+
+        # 標準出力と標準エラー出力を textedit にリダイレクト   
+        class QTextEditLogger(logging.Handler):
+            def __init__(self, text_edit):
+                super().__init__()
+                self.text_edit = text_edit
+
+            def emit(self, record):
+                msg = self.format(record)
+                QtCore.QMetaObject.invokeMethod(
+                    self.text_edit,
+                    "append",
+                    QtCore.Qt.QueuedConnection,
+                    QtCore.Q_ARG(str, msg)
+                )
+                QtCore.QMetaObject.invokeMethod(
+                    self.text_edit.verticalScrollBar(),
+                    "setValue",
+                    QtCore.Qt.QueuedConnection,
+                    QtCore.Q_ARG(int, self.text_edit.verticalScrollBar().maximum())
+                )
+
+        # Create a QTextEditLogger and set it up
+        text_edit_logger = QTextEditLogger(self.console)
+        log_format = "%(asctime)s:%(levelname)-7s:%(threadName)s:%(filename)s:%(lineno)d:%(funcName)s:%(message)s"
+        text_edit_logger.setFormatter(logging.Formatter(log_format))
+        logging.getLogger().addHandler(text_edit_logger)
+        
         self.load_sheet_selection()
         self.left_pane.book_list.fileOrderChanged.emit()
         self.setCentralWidget(base)
