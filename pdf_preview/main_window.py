@@ -443,23 +443,24 @@ class MainWindow(QMainWindow):
         self.viewer_html = str(Path(__file__).parent / Path('pdfjs-dist/web/viewer.html'))
         LOGGER.debug(self.viewer_html)
 
-        layout = QVBoxLayout()
-        layout.addWidget(self.web)
-        self.right_pane = QWidget(self)
-        self.right_pane.setLayout(layout)
+        # ログ表示用のテキストエリア
+        self.console = QtWidgets.QTextEdit()
+        self.console.setReadOnly(True)
+        self.console.setLineWrapMode(QtWidgets.QTextEdit.LineWrapMode.NoWrap)
 
+        # 右側の上下分割用の QSplitter を作成
+        self.right_pane = QSplitter(QtCore.Qt.Vertical)
+        self.right_pane.addWidget(self.web)
+        self.right_pane.addWidget(self.console)
+        self.right_pane.setStretchFactor(0, 1)  # 上部のウィジェット（webビューア）を優先
+        self.right_pane.setStretchFactor(1, 0)  # 下部のウィジェット（ログ表示）を固定
+
+        # 左右分割用の QSplitter を作成
         base = QSplitter()
         base.addWidget(self.left_pane)
         base.addWidget(self.right_pane)
         base.setStretchFactor(0, 0)  # 左はウインドウサイズ変更に追随させない
         base.setStretchFactor(1, 1)
-
-        # ログ表示用のテキストエリア
-        self.console = QtWidgets.QTextEdit()
-        self.console.setReadOnly(True)
-        self.console.setLineWrapMode(QtWidgets.QTextEdit.LineWrapMode.NoWrap)
-        self.console.setFixedHeight(100)
-        layout.addWidget(self.console)
 
         # 標準出力と標準エラー出力を textedit にリダイレクト   
         class QTextEditLogger(logging.Handler):
