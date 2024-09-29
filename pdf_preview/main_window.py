@@ -23,8 +23,12 @@ LOGGER = logging.getLogger(__name__)
 
 
 def merge_pdfs(paths, output):
-    LOGGER.debug("merge from {}".format(paths))
-    LOGGER.debug("merge to {}".format(output))
+    """PDFファイルを結合する"""
+    if LOGGER.isEnabledFor(logging.DEBUG):
+        for path in paths:
+            LOGGER.debug("merge from {}".format(path))
+        LOGGER.debug("merge to {}".format(output))
+
     merger = PdfMerger()
     for path in paths:
         merger.append(open(path, "rb"))
@@ -379,7 +383,10 @@ class MainWindow(QMainWindow):
     def load_sheet_selection(self):
         """シート選択の状態を復元する"""
         try:
-            json_data = json.load(open(self.sheet_selection_filename, "r"))
+            try:
+                json_data = json.load(open(self.sheet_selection_filename, "r"))
+            except UnicodeDecodeError:
+                json_data = json.load(open(self.sheet_selection_filename, "r", encoding="utf-8"))
         except IOError:
             return
         try:
@@ -408,8 +415,9 @@ class MainWindow(QMainWindow):
             path = item.text()  # path(relative)
             json_data["files"].append(path)
         json_data["sheets"] = self.left_pane.sheet_list.sheet_selection
-        LOGGER.debug("save setting: {}: {}".format(self.sheet_selection_filename, json_data))
-        json.dump(json_data, open(self.sheet_selection_filename, "w"), indent=4, ensure_ascii=False)
+        # LOGGER.debug("save setting: {}: {}".format(self.sheet_selection_filename, json_data))
+        LOGGER.debug("save")
+        json.dump(json_data, open(self.sheet_selection_filename, "w", encoding="utf-8"), indent=4, ensure_ascii=False)
 
     def __init__(self, source_path: str):
         """
@@ -440,17 +448,52 @@ class MainWindow(QMainWindow):
         self.viewer_html = str(Path(__file__).parent / Path('pdfjs-dist/web/viewer.html'))
         LOGGER.debug(self.viewer_html)
 
-        layout = QVBoxLayout()
-        layout.addWidget(self.web)
-        self.right_pane = QWidget(self)
-        self.right_pane.setLayout(layout)
+        # ログ表示用のテキストエリア
+        self.console = QtWidgets.QTextEdit()
+        self.console.setReadOnly(True)
+        self.console.setLineWrapMode(QtWidgets.QTextEdit.LineWrapMode.NoWrap)
 
+        # 右側の上下分割用の QSplitter を作成
+        self.right_pane = QSplitter(QtCore.Qt.Vertical)
+        self.right_pane.addWidget(self.web)
+        self.right_pane.addWidget(self.console)
+        self.right_pane.setStretchFactor(0, 1)  # 上部のウィジェット（webビューア）を優先
+        self.right_pane.setStretchFactor(1, 0)  # 下部のウィジェット（ログ表示）を固定
+
+        # 左右分割用の QSplitter を作成
         base = QSplitter()
         base.addWidget(self.left_pane)
         base.addWidget(self.right_pane)
         base.setStretchFactor(0, 0)  # 左はウインドウサイズ変更に追随させない
         base.setStretchFactor(1, 1)
 
+        # 標準出力と標準エラー出力を textedit にリダイレクト   
+        class QTextEditLogger(logging.Handler):
+            def __init__(self, text_edit):
+                super().__init__()
+                self.text_edit = text_edit
+
+            def emit(self, record):
+                msg = self.format(record)
+                QtCore.QMetaObject.invokeMethod(
+                    self.text_edit,
+                    "append",
+                    QtCore.Qt.QueuedConnection,
+                    QtCore.Q_ARG(str, msg)
+                )
+                QtCore.QMetaObject.invokeMethod(
+                    self.text_edit.verticalScrollBar(),
+                    "setValue",
+                    QtCore.Qt.QueuedConnection,
+                    QtCore.Q_ARG(int, self.text_edit.verticalScrollBar().maximum())
+                )
+
+        # Create a QTextEditLogger and set it up
+        text_edit_logger = QTextEditLogger(self.console)
+        log_format = "%(asctime)s:%(levelname)-7s:%(threadName)s:%(filename)s:%(lineno)d:%(funcName)s:%(message)s"
+        text_edit_logger.setFormatter(logging.Formatter(log_format))
+        logging.getLogger().addHandler(text_edit_logger)
+        
         self.load_sheet_selection()
         self.left_pane.book_list.fileOrderChanged.emit()
         self.setCentralWidget(base)
@@ -464,7 +507,7 @@ class MainWindow(QMainWindow):
 
         param = QUrl.fromLocalFile(str(self.output_path.absolute())).toString()
         url= QUrl.fromUserInput(QUrl.fromLocalFile(self.viewer_html).toString() + "?file={}".format(param))
-        LOGGER.debug("PDF表示を更新します {}".format(param))
+        LOGGER.debug("PDF表示を更新します {}".format(self.output_path))
         # if self.web.url() != url:
         self.web.load(url)
         return
