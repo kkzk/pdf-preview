@@ -136,7 +136,6 @@ class CheckableFileSystemModel(QFileSystemModel):
         return super().setData(self, index, value, role)
 
 
-
 class FileOrderWidget(QtWidgets.QListWidget):
     """選択したファイルの順番を変更するリスト
 
@@ -404,6 +403,10 @@ class MainWindow(QMainWindow):
         except KeyError:
             pass
 
+        # book_list の先頭のアイテムを選択する
+        if self.left_pane.book_list.count() > 0:
+            self.left_pane.book_list.setCurrentRow(0)
+
     def save_sheet_selection(self):
         """シート選択の状態をファイルに保存する
 
@@ -443,6 +446,7 @@ class MainWindow(QMainWindow):
         self.sheet_selection_filename = self.output_path.with_suffix(".PDF.json")
         self.setWindowTitle(str(self.output_path))
 
+        # ファイルツリーのモデルを作成
         self.left_pane = LeftPane(self, self.source_dir)
         self.left_pane.model.updateCheckState.connect(self.save_sheet_selection)  # ツリーでチェックされたら保存
         self.left_pane.file_selection_changed.connect(self.convertToPdf)  # ファイル選択の変更
