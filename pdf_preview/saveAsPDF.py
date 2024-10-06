@@ -63,9 +63,19 @@ class Excel(OfficeBase):
 
     @contextmanager
     def _open(self, filename):
-        # Excel が同名のファイルを開けないので異なるファイル名にコピーして開く
-        (fd, tmp_filename) = tempfile.mkstemp(Path(filename).suffix)
-        os.close(fd)
+        """
+        Opens an Excel workbook in a temporary directory, yields the application object,
+        and ensures the temporary files are cleaned up after use.
+        Args:
+            filename (str): The path to the Excel file to be opened.
+        Yields:
+            application: The Excel application object with the workbook opened.
+        Side Effects:
+            - Copies the specified file to a temporary directory.
+            - Deletes the temporary file and directory after the workbook is closed.
+        """
+        temp_dir = tempfile.mkdtemp()
+        tmp_filename = os.path.join(temp_dir, " " + Path(filename).name)
         shutil.copy2(filename, tmp_filename)
         LOGGER.debug("copy to %s", tmp_filename)
         application = self.office.Workbooks.Open(tmp_filename, 0, True)
@@ -74,6 +84,7 @@ class Excel(OfficeBase):
         application.Close()
         del application
         os.unlink(tmp_filename)
+        os.rmdir(temp_dir)
         LOGGER.debug("delete %s", tmp_filename)
 
 
@@ -115,7 +126,7 @@ class Converter(object):
         :param dest_dir: 変換後のファイルの配置場所
         :return: 変換後のファイル名をフルパス
         """
-        LOGGER.debug("convert from {}".format(src_filename))
+        LOGGER.info("convert from {}".format(src_filename))
         src_path = Path(src_filename).absolute()
         ext = Path(src_filename).suffix.lower()
 
