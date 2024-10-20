@@ -63,9 +63,19 @@ class Excel(OfficeBase):
 
     @contextmanager
     def _open(self, filename):
-        # Excel が同名のファイルを開けないので異なるファイル名にコピーして開く
-        (fd, tmp_filename) = tempfile.mkstemp(Path(filename).suffix)
-        os.close(fd)
+        """
+        Opens an Excel workbook in a temporary directory, yields the application object,
+        and ensures the temporary files are cleaned up after use.
+        Args:
+            filename (str): The path to the Excel file to be opened.
+        Yields:
+            application: The Excel application object with the workbook opened.
+        Side Effects:
+            - Copies the specified file to a temporary directory.
+            - Deletes the temporary file and directory after the workbook is closed.
+        """
+        temp_dir = tempfile.mkdtemp()
+        tmp_filename = os.path.join(temp_dir, " " + Path(filename).name)
         shutil.copy2(filename, tmp_filename)
         LOGGER.debug("copy to %s", tmp_filename)
         application = self.office.Workbooks.Open(tmp_filename, 0, True)
@@ -74,10 +84,11 @@ class Excel(OfficeBase):
         application.Close()
         del application
         os.unlink(tmp_filename)
+        os.rmdir(temp_dir)
         LOGGER.debug("delete %s", tmp_filename)
 
 
-    def saveAsPDF(self, filename, pdf_filename, selected_sheet: dict = None):
+    def saveAsPDF(self, filename, pdf_filename: str, selected_sheet: dict = None):
         with self._open(filename) as excel_workbook:
             if selected_sheet is None:
                 # シートを選択したことがない場合には全体を変換する
@@ -115,32 +126,33 @@ class Converter(object):
         :param dest_dir: 変換後のファイルの配置場所
         :return: 変換後のファイル名をフルパス
         """
-        LOGGER.debug("ENTER:convert({})".format(src_filename))
-        src = Path(src_filename).absolute()
+        LOGGER.info("convert from {}".format(src_filename))
+        src_path = Path(src_filename).absolute()
         ext = Path(src_filename).suffix.lower()
 
         # 変換後のファイル名を作成する
-        dst_name = Path(hashlib.md5(str(src).encode()).hexdigest()).with_suffix(".pdf")
+        dst_name = Path(hashlib.md5(str(src_path).encode()).hexdigest()).with_suffix(".pdf")
         dst_path = Path(cache_dir) / dst_name
         dst_path.parent.mkdir(exist_ok=True, parents=True)
+        LOGGER.debug("convert to {}".format(dst_name))
 
         # 変換元のファイルの存在を確認する
-        if not src.exists():
-            LOGGER.info("ファイルがありません:{}".format(src_filename))
+        if not src_path.exists():
+            LOGGER.info("not found {}".format(src_filename))
             return None
 
         # Excel/Word を開く前にタイムスタンプを保存する
-        src_mtime = src.stat().st_mtime
+        src_mtime = src_path.stat().st_mtime
         # 変換先の PDF のタイムスタンプが同じなら変換しない
         if dst_path.exists():
             dst_mtime = Path(dst_path).stat().st_mtime
             if not force:
                 if src_mtime == dst_mtime:
-                    LOGGER.info("ファイル更新済み:{}".format(dst_name))
+                    LOGGER.debug("same timestamp {}".format(dst_path.stat().st_mtime))
                     return dst_path
 
         if ext in [".pdf"]:
-            shutil.copy2(src, dst_path)
+            shutil.copy2(src_path, dst_path)
             return dst_path
 
         if ext in [".xlsx", ".xls", ".xlsm"]:
@@ -150,25 +162,10 @@ class Converter(object):
         else:
             return None
 
-        # 出力先のファイルが OPEN されていると出力できない(Excel)
-        # 一時ファイルを作成して後から移動する
-        (fd, tmp_filename) = tempfile.mkstemp(".PDF")
-        os.close(fd)
-
         # Officeの機能でPDFを作成する
-        office.saveAsPDF(str(src), tmp_filename, selected_sheets)
-
-        while True:
-            try:
-                shutil.move(tmp_filename, dst_path)
-                os.utime(dst_path, (src_mtime, src_mtime))  # タイムスタンプをコピー
-                return dst_path
-            except OSError:
-                import traceback
-                traceback.print_exc()
-                r = win32ui.MessageBox("出力先 PDF ファイルが使用中です", None, win32con.MB_RETRYCANCEL)
-                if r == win32con.IDCANCEL:
-                    return None
+        office.saveAsPDF(str(src_path), str(dst_path), selected_sheets)
+        os.utime(dst_path, (src_mtime, src_mtime))  # タイムスタンプをコピー
+        return dst_path
 
 
 def main(sources):

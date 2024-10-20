@@ -1,5 +1,5 @@
+import os
 from pathlib import Path
-
 
 def get_pdfjs():
     if not Path("pdfjs-dist.zip").exists():
@@ -12,3 +12,10 @@ def get_pdfjs():
         with zipfile.ZipFile("pdfjs-dist.zip", "r") as existing_zip:
             existing_zip.extractall("pdfjs-dist")
 
+def cache_dir() -> Path:
+    cache_dir = os.path.expandvars(r'$LOCALAPPDATA\pdf-preview\cache')
+    return Path(cache_dir)
+
+def log_dir() -> Path:
+    log_dir = os.path.expandvars(r'$LOCALAPPDATA\pdf-preview\log')
+    return Path(log_dir)

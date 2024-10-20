@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "pdf-preview"
-version = "0.3.2"
+version = "0.3.3"
 description = "PDF Previewer for Excel / Word document."
 authors = ["kkzk <shohachi.kakizaki@gmail.com>"]
 homepage = "https://github.com/kkzk/pdf-preview"
@@ -13,11 +13,13 @@ pyside6 = "^6.6.2"
 pypdf = "^4.0.2"
 pywin32 = "^306"
 openpyxl = "^3.1.2"
+pyyaml = "^6.0.2"
 
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.1.1"
 pytest-qt = "^4.4.0"
+toml = "^0.10.2"
 
 [build-system]
 requires = ["poetry-core"]

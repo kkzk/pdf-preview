@@ -11,13 +11,14 @@ from pypdf import PdfMerger
 from PySide6 import QtCore
 from PySide6 import QtWidgets
 from PySide6.QtCore import QUrl, Slot, Qt
-from PySide6.QtGui import QGuiApplication, QDesktopServices
+from PySide6.QtGui import QGuiApplication, QDesktopServices, QKeySequence
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import QApplication, QMainWindow, QWidget, QFileSystemModel, QTreeView, QSplitter, \
     QListWidgetItem, QAbstractItemView
 from PySide6.QtWidgets import QVBoxLayout
 
-from . import saveAsPDF
+from . import saveAsPDF, util
+import shutil
 
 LOGGER = logging.getLogger(__name__)
 
@@ -53,9 +54,9 @@ class ConvertThread(QtCore.QRunnable):
 
     def run(self):
         LOGGER.debug("PDF変換開始")
-        cache_dir = os.path.expandvars(r'$LOCALAPPDATA\pdf-preview\cache')
+        cache_dir = util.cache_dir()
         pdfs = []
-        cached_file = glob(cache_dir + r"\*")
+        cached_file = glob(str(cache_dir) + r"\*")
         for f in cached_file:
             if datetime.fromtimestamp(os.stat(f).st_birthtime) < datetime.now() - timedelta(days=2):
                 LOGGER.debug("purge cache:{} ({})".format(os.stat(f).st_birthtime, f))
@@ -146,6 +147,13 @@ class FileOrderWidget(QtWidgets.QListWidget):
     def __init__(self, parent, root):
         super(FileOrderWidget, self).__init__(parent)
         self.root = root
+        # Drag & Drop での順番変更を有効にする
+        self.setAcceptDrops(True)
+        self.setDragEnabled(True)
+        self.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
+        self.setDropIndicatorShown(True)
+        self.setMovement(QtWidgets.QListView.Movement.Snap)
+
         self.model().rowsInserted.connect(self.fileOrderChanged)
         self.model().rowsInserted.connect(self.addWatchPath)
         self.model().rowsRemoved.connect(self.fileOrderChanged)
@@ -205,7 +213,7 @@ class FileOrderWidget(QtWidgets.QListWidget):
         if isinstance(filename, str):
             item = QtWidgets.QListWidgetItem(filename)
             item.setIcon(self.iconProvider.icon(QtCore.QFileInfo(self.abspath(filename))))
-            item.setFlags(item.flags() & ~Qt.ItemIsEnabled)
+            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsDragEnabled)
             self.addItem(item)
             super().addItem(item)
         else:
@@ -312,14 +320,12 @@ class LeftPane(QWidget):
         self.tv.setRootIndex(self.model.setRootPath(root))
         self.tv.header().setStretchLastSection(False)  # 一番右のカラムをストレッチする→False
         self.tv.setColumnWidth(0, 200)
+        self.tv.doubleClicked.connect(self.open_file)
 
         #
         # ファイル一覧のビュー
         #
         self.book_list = FileOrderWidget(self, root)
-        self.book_list.setAcceptDrops(True)
-        self.book_list.setDragEnabled(True)
-        self.book_list.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
 
         #
         # Excel のシート一覧のビュー
@@ -337,7 +343,6 @@ class LeftPane(QWidget):
         # 下段のシート一覧のチェック状態が変更になった時
         self.sheet_list.sheetSelectionChanged.connect(self.on_sheetSelectionUpdated)
 
-        self.tv.doubleClicked.connect(self.open_file)
 
         s = QSplitter(Qt.Vertical)
         lo = QVBoxLayout()
@@ -399,6 +404,10 @@ class MainWindow(QMainWindow):
         except KeyError:
             pass
 
+        # book_list の先頭のアイテムを選択する
+        if self.left_pane.book_list.count() > 0:
+            self.left_pane.book_list.setCurrentRow(0)
+
     def save_sheet_selection(self):
         """シート選択の状態をファイルに保存する
 
@@ -419,29 +428,41 @@ class MainWindow(QMainWindow):
         LOGGER.debug("save")
         json.dump(json_data, open(self.sheet_selection_filename, "w", encoding="utf-8"), indent=4, ensure_ascii=False)
 
+    def save(self):
+        """PDFを保存する"""
+        LOGGER.debug("save to:{}".format(self.saveto_path))
+        shutil.copy(self.output_path, self.saveto_path)
+
     def __init__(self, source_path: str):
         """
 
         :param source_path: 対象のファイルまたはディレクトリ
         """
         super(MainWindow, self).__init__()
+
+        cache_dir = util.cache_dir()
         if Path(source_path).is_file():
             # 対象がファイルの場合はファイルのあるディレクトリをツリーに表示する
             # 出力先はファイルと同じ場所。ファイルと同名で拡張子を変えたもの。
             self.source_dir = str(Path(source_path).parent)
-            self.output_path = Path(self.source_dir) / Path(source_path).with_suffix(".PDF").name
+            self.output_path = cache_dir / Path(source_path).with_suffix(".PDF").name
+            self.saveto_path = Path(self.source_dir) / Path(source_path).with_suffix(".PDF").name
         else:
             # 出力先は対象ディレクトリの中。ディレクトリと同名で拡張子を変えたもの。
             self.source_dir = source_path
-            self.output_path = Path(self.source_dir) / Path(self.source_dir).with_suffix(".PDF").name
+            self.output_path = cache_dir / Path(self.source_dir).with_suffix(".PDF").name
+            self.saveto_path = Path(self.source_dir) / Path(source_path).with_suffix(".PDF").name
 
-        self.sheet_selection_filename = self.output_path.with_suffix(".PDF.json")
+        self.sheet_selection_filename = cache_dir / self.output_path.with_suffix(".PDF.json")
+
         self.setWindowTitle(str(self.output_path))
 
+        # ファイルツリーのモデルを作成
         self.left_pane = LeftPane(self, self.source_dir)
         self.left_pane.model.updateCheckState.connect(self.save_sheet_selection)  # ツリーでチェックされたら保存
         self.left_pane.file_selection_changed.connect(self.convertToPdf)  # ファイル選択の変更
         self.left_pane.sheet_selection_changed.connect(self.on_sheet_selection_changed)  # シート選択の変更
+
         self.web = QWebEngineView()
         self.web.settings().setAttribute(self.web.settings().WebAttribute.PluginsEnabled, True)
         self.web.settings().setAttribute(self.web.settings().WebAttribute.PdfViewerEnabled, True)
@@ -494,6 +515,12 @@ class MainWindow(QMainWindow):
         text_edit_logger.setFormatter(logging.Formatter(log_format))
         logging.getLogger().addHandler(text_edit_logger)
         
+        # メニューの追加
+        menu = self.menuBar().addMenu(self.tr("File"))
+        save_action = menu.addAction(self.tr("Save"), self.save)
+        save_action.setShortcut(QKeySequence("Ctrl+S"))
+        menu.addAction(self.tr("Exit"), self.close)
+
         self.load_sheet_selection()
         self.left_pane.book_list.fileOrderChanged.emit()
         self.setCentralWidget(base)
