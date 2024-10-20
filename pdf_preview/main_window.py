@@ -385,7 +385,7 @@ class LeftPane(QWidget):
 
 
 class MainWindow(QMainWindow):
-    def load_sheet_selection(self):
+    def load_sheet_selection(self) -> dict:
         """シート選択の状態を復元する"""
         try:
             try:
@@ -394,6 +394,9 @@ class MainWindow(QMainWindow):
                 json_data = json.load(open(self.sheet_selection_filename, "r", encoding="utf-8"))
         except IOError:
             return
+        return json_data
+    
+    def apply_sheet_selection(self, json_data):
         try:
             self.left_pane.sheet_list.sheet_selection = json_data["sheets"]
             blocker = QtCore.QSignalBlocker(self.left_pane.book_list)
@@ -521,8 +524,13 @@ class MainWindow(QMainWindow):
         save_action.setShortcut(QKeySequence("Ctrl+S"))
         menu.addAction(self.tr("Exit"), self.close)
 
-        self.load_sheet_selection()
+        # シート選択の状態を復元
+        saved_state = self.load_sheet_selection()
+        if Path(source_path).is_file():
+            saved_state = {"files": [Path(source_path).name], "sheets": {}}
+        self.apply_sheet_selection(saved_state)
         self.left_pane.book_list.fileOrderChanged.emit()
+
         self.setCentralWidget(base)
         self.resize(QtWidgets.QApplication.screens()[0].size() * 0.7)
 
