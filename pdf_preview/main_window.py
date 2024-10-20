@@ -528,7 +528,8 @@ class MainWindow(QMainWindow):
         saved_state = self.load_sheet_selection()
         if Path(source_path).is_file():
             saved_state = {"files": [Path(source_path).name], "sheets": {}}
-        self.apply_sheet_selection(saved_state)
+        if saved_state is not None:
+            self.apply_sheet_selection(saved_state)
         self.left_pane.book_list.fileOrderChanged.emit()
 
         self.setCentralWidget(base)
