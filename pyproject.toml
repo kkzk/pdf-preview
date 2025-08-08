@@ -1,29 +1,33 @@
-[tool.poetry]
+
+[project]
 name = "pdf-preview"
 version = "0.3.5"
 description = "PDF Previewer for Excel / Word document."
-authors = ["kkzk <shohachi.kakizaki@gmail.com>"]
-homepage = "https://github.com/kkzk/pdf-preview"
+authors = [
+	{ name = "kkzk", email = "shohachi.kakizaki@gmail.com" }
+]
 readme = "README.rst"
-packages = [{include = "pdf_preview", from = "."}]
+dependencies = [
+	"pyside6>=6.6.2",
+	"pypdf>=4.0.2",
+	"pywin32>=306",
+	"openpyxl>=3.1.2",
+	"pyyaml>=6.0.2"
+]
 
-[tool.poetry.dependencies]
-python = ">=3.12,<3.13"
-pyside6 = "^6.6.2"
-pypdf = "^4.0.2"
-pywin32 = "^306"
-openpyxl = "^3.1.2"
-pyyaml = "^6.0.2"
+[project.optional-dependencies]
+dev = [
+	"pytest>=8.1.1",
+	"pytest-qt>=4.4.0",
+	"toml>=0.10.2"
+]
 
+[project.scripts]
+pdf-preview = "pdf_preview.__main__:main"
 
-[tool.poetry.group.dev.dependencies]
-pytest = "^8.1.1"
-pytest-qt = "^4.4.0"
-toml = "^0.10.2"
+[project.urls]
+Homepage = "https://github.com/kkzk/pdf-preview"
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
-
-[tool.poetry.scripts]
-pdf-preview = "pdf_preview.__main__:main"
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
