@@ -444,6 +444,7 @@ class MainWindow(QMainWindow):
         super(MainWindow, self).__init__()
 
         cache_dir = util.cache_dir()
+        cache_dir.mkdir(parents=True, exist_ok=True)
         if Path(source_path).is_file():
             # 対象がファイルの場合はファイルのあるディレクトリをツリーに表示する
             # 出力先はファイルと同じ場所。ファイルと同名で拡張子を変えたもの。
