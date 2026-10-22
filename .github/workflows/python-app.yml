@@ -29,5 +29,4 @@ jobs:
     - name: Check package data
       shell: bash
       run: |
-        uv run python -m zipfile -l dist/*.whl | grep "pdf_preview/pdfjs-dist/web/viewer.html" > /dev/null
         uv run python -m zipfile -l dist/*.whl | grep "pdf_preview/logging.yaml" > /dev/null

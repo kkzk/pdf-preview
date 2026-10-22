@@ -50,4 +50,4 @@ Development
 Uses
 ----
 
-- PDF.js 6.4.299 legacy build (included)
+- Qt PDF (QPdfView) for rendering

@@ -11,13 +11,13 @@ from pypdf import PdfWriter
 from PySide6 import QtCore
 from PySide6 import QtWidgets
 from PySide6.QtCore import QUrl, Slot, Qt
-from PySide6.QtGui import QGuiApplication, QDesktopServices, QKeySequence
-from PySide6.QtWebEngineWidgets import QWebEngineView
+from PySide6.QtGui import QDesktopServices, QKeySequence
 from PySide6.QtWidgets import QApplication, QMainWindow, QWidget, QFileSystemModel, QTreeView, QSplitter, \
     QListWidgetItem, QAbstractItemView
 from PySide6.QtWidgets import QVBoxLayout
 
 from . import saveAsPDF, util
+from .pdf_view import PdfViewer
 import shutil
 
 LOGGER = logging.getLogger(__name__)
@@ -467,11 +467,7 @@ class MainWindow(QMainWindow):
         self.left_pane.file_selection_changed.connect(self.convertToPdf)  # ファイル選択の変更
         self.left_pane.sheet_selection_changed.connect(self.on_sheet_selection_changed)  # シート選択の変更
 
-        self.web = QWebEngineView()
-        self.web.settings().setAttribute(self.web.settings().WebAttribute.PluginsEnabled, True)
-        self.web.settings().setAttribute(self.web.settings().WebAttribute.PdfViewerEnabled, True)
-        self.viewer_html = str(Path(__file__).parent / Path('pdfjs-dist/web/viewer.html'))
-        LOGGER.debug(self.viewer_html)
+        self.pdf_viewer = PdfViewer()
 
         # ログ表示用のテキストエリア
         self.console = QtWidgets.QTextEdit()
@@ -480,9 +476,9 @@ class MainWindow(QMainWindow):
 
         # 右側の上下分割用の QSplitter を作成
         self.right_pane = QSplitter(QtCore.Qt.Vertical)
-        self.right_pane.addWidget(self.web)
+        self.right_pane.addWidget(self.pdf_viewer)
         self.right_pane.addWidget(self.console)
-        self.right_pane.setStretchFactor(0, 1)  # 上部のウィジェット（webビューア）を優先
+        self.right_pane.setStretchFactor(0, 1)  # 上部のウィジェット（PDFビューア）を優先
         self.right_pane.setStretchFactor(1, 0)  # 下部のウィジェット（ログ表示）を固定
 
         # 左右分割用の QSplitter を作成
@@ -538,15 +534,8 @@ class MainWindow(QMainWindow):
 
     @Slot()
     def reload(self):
-        # url = QUrl.fromLocalFile(str(self.output_path.absolute()))
-        # LOGGER.debug("PDF表示を更新します {}".format(url))
-        # self.web.load(url)
-
-        param = QUrl.fromLocalFile(str(self.output_path.absolute())).toString()
-        url= QUrl.fromUserInput(QUrl.fromLocalFile(self.viewer_html).toString() + "?file={}".format(param))
         LOGGER.debug("PDF表示を更新します {}".format(self.output_path))
-        # if self.web.url() != url:
-        self.web.load(url)
+        self.pdf_viewer.reload(self.output_path)
         return
 
     # シートの選択を変えたら、変えたブックだけPDF変換してすべて結合

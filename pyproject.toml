@@ -35,4 +35,4 @@ build-backend = "setuptools.build_meta"
 packages = ["pdf_preview"]
 
 [tool.setuptools.package-data]
-pdf_preview = ["logging.yaml", "pdfjs-dist/**/*"]
+pdf_preview = ["logging.yaml"]
