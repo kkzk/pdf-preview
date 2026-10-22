@@ -1,10 +1,14 @@
 import os
 from pathlib import Path
 
+# QtWebEngine の Chromium は最新 JS 機能に追随しないため legacy ビルドを使う
+PDFJS_VERSION = "6.4.299"
+
 def get_pdfjs():
     if not Path("pdfjs-dist.zip").exists():
         import urllib.request
-        url = "https://github.com/mozilla/pdf.js/releases/download/v2.2.228/pdfjs-2.2.228-dist.zip"
+        url = ("https://github.com/mozilla/pdf.js/releases/download/"
+               f"v{PDFJS_VERSION}/pdfjs-{PDFJS_VERSION}-legacy-dist.zip")
         with urllib.request.urlopen(url) as response:
             open("pdfjs-dist.zip", "wb").write(response.read())
     if not Path("pdfjs-dist/web/viewer.html").exists():

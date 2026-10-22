@@ -7,7 +7,7 @@ from glob import glob
 from pathlib import Path
 
 import openpyxl
-from pypdf import PdfMerger
+from pypdf import PdfWriter
 from PySide6 import QtCore
 from PySide6 import QtWidgets
 from PySide6.QtCore import QUrl, Slot, Qt
@@ -30,11 +30,11 @@ def merge_pdfs(paths, output):
             LOGGER.debug("merge from {}".format(path))
         LOGGER.debug("merge to {}".format(output))
 
-    merger = PdfMerger()
+    writer = PdfWriter()
     for path in paths:
-        merger.append(open(path, "rb"))
-    merger.write(str(output))
-    merger.close()
+        writer.append(path)
+    writer.write(str(output))
+    writer.close()
     LOGGER.debug("merged")
 
 
@@ -569,8 +569,7 @@ class MainWindow(QMainWindow):
 
 def main(source):
     LOGGER.debug("source:{}".format(source))
-    QGuiApplication.setAttribute(Qt.AA_EnableHighDpiScaling)
     app = QApplication()
     main_window = MainWindow(source)
     main_window.show()
-    app.exec_()
+    app.exec()
